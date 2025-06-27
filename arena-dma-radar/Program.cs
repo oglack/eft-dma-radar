@@ -465,7 +465,7 @@ namespace arena_dma_radar
         /// </summary>
         private static class GitHubVersionChecker
         {
-            private const string GITHUB_API_URL = "https://api.github.com/repos/lone-dma/arena-dma-radar/releases/latest";
+            private const string GITHUB_API_URL = "https://api.github.com/repos/oglack/arena-dma-radar/releases/latest";
 
             private static readonly HttpClient _httpClient = new HttpClient();
             private static DateTime _lastCheck = DateTime.MinValue;

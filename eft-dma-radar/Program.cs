@@ -54,7 +54,7 @@ namespace eft_dma_radar
     internal static class Program
     {
         internal const string Name = "EFT DMA Radar";
-        internal const string Version = "1.2.0";
+        internal const string Version = "1.2.1";
 
         /// <summary>
         /// Current application mode
@@ -468,7 +468,7 @@ namespace eft_dma_radar
         /// </summary>
         private static class GitHubVersionChecker
         {
-            private const string GITHUB_API_URL = "https://api.github.com/repos/lone-dma/eft-dma-radar/releases/latest";
+            private const string GITHUB_API_URL = "https://api.github.com/repos/oglack/eft-dma-radar/releases/latest";
 
             private static readonly HttpClient _httpClient = new HttpClient();
             private static DateTime _lastCheck = DateTime.MinValue;

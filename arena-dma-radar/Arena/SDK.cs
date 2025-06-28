@@ -24,7 +24,7 @@ namespace SDK
         public readonly partial struct AmmoTemplate
         {
             public const uint ClassName_ClassToken = 0x2003299; // MDToken
-            public const uint MethodName_MethodToken = 0x60130F0; // MDToken
+            public const uint MethodName_MethodToken = 0x60130F1; // MDToken
             public const string ClassName = @"\uF079";
             public const string MethodName = @"get_LoadUnloadModifier";
         }
@@ -32,7 +32,7 @@ namespace SDK
         public readonly partial struct NoMalfunctions
         {
             public const uint ClassName_ClassToken = 0x2001BD5; // MDToken
-            public const uint GetMalfunctionState_MethodToken = 0x600AC26; // MDToken
+            public const uint GetMalfunctionState_MethodToken = 0x600AC27; // MDToken
             public const string ClassName = @"EFT.Player+FirearmController";
             public const string GetMalfunctionState = @"GetMalfunctionState";
         }
@@ -57,14 +57,14 @@ namespace SDK
 
         public readonly partial struct GridItemView
         {
-            public const uint MethodName_MethodToken = 0x6016A4A; // MDToken
+            public const uint MethodName_MethodToken = 0x6016A4B; // MDToken
             public const string MethodName = @"\uE011";
         }
 
         public readonly partial struct ProceduralWeaponAnimation
         {
             public const uint ClassName_ClassToken = 0x20028AD; // MDToken
-            public const uint MethodName_MethodToken = 0x600F972; // MDToken
+            public const uint MethodName_MethodToken = 0x600F973; // MDToken
             public const string ClassName = @"EFT.Animations.ProceduralWeaponAnimation";
             public const string MethodName = @"get_ShotNeedsFovAdjustments";
         }
@@ -72,7 +72,7 @@ namespace SDK
         public readonly partial struct MovementContext
         {
             public const uint ClassName_ClassToken = 0x2001DED; // MDToken
-            public const uint MethodName_MethodToken = 0x600BBDD; // MDToken
+            public const uint MethodName_MethodToken = 0x600BBDE; // MDToken
             public const string ClassName = @"EFT.MovementContext";
             public const string MethodName = @"SetPhysicalCondition";
         }
@@ -88,7 +88,7 @@ namespace SDK
         public readonly partial struct FovChanger
         {
             public const uint ClassName_ClassToken = 0x200358D; // MDToken
-            public const uint MethodName_MethodToken = 0x6013EE9; // MDToken
+            public const uint MethodName_MethodToken = 0x6013EEA; // MDToken
             public const string ClassName = @"\uF238";
             public const string MethodName = @"SetFov";
         }
@@ -96,7 +96,7 @@ namespace SDK
         public readonly partial struct VitalParts
         {
             public const uint ClassName_ClassToken = 0x200323E; // MDToken
-            public const uint MethodName_MethodToken = 0x6012EA7; // MDToken
+            public const uint MethodName_MethodToken = 0x6012EA8; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.CompoundItem";
             public const string MethodName = @"\uE007";
         }
@@ -104,7 +104,7 @@ namespace SDK
         public readonly partial struct InventoryLogic_Mod
         {
             public const uint ClassName_ClassToken = 0x20032B5; // MDToken
-            public const uint MethodName_MethodToken = 0x601318A; // MDToken
+            public const uint MethodName_MethodToken = 0x601318B; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.Mod";
             public const string MethodName = @"get_RaidModdable";
         }
@@ -373,7 +373,7 @@ namespace SDK
         {
             public const uint Nickname = 0x20; // String
             public const uint Settings = 0x60; // -.\uE9FD
-            public const uint Side = 0xA8; // [HUMAN] Int32
+            public const uint Side = 0xA8; // System.Int32
             public const uint RegistrationDate = 0xAC; // Int32
             public const uint MemberCategory = 0xB8; // System.Int32
             public const uint Experience = 0xBC; // Int32

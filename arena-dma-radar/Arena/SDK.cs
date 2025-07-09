@@ -4,107 +4,107 @@ namespace SDK
     {
         public readonly partial struct StreamerMode
         {
-            public const uint ClassName_ClassToken = 0x2002155; // MDToken
+            public const uint ClassName_ClassToken = 0x2002159; // MDToken
             public const string ClassName = @"\uEAC1";
             public const string MethodName = @"IsLocalStreamer";
         }
 
         public readonly partial struct InertiaSettings
         {
-            public const uint ClassName_ClassToken = 0x200183B; // MDToken
+            public const uint ClassName_ClassToken = 0x200183F; // MDToken
             public const string ClassName = @"\uE802";
         }
 
         public readonly partial struct GameSettings
         {
-            public const uint ClassName_ClassToken = 0x20020F4; // MDToken
+            public const uint ClassName_ClassToken = 0x20020F8; // MDToken
             public const string ClassName = @"\uEAB1";
         }
 
         public readonly partial struct AmmoTemplate
         {
-            public const uint ClassName_ClassToken = 0x2003113; // MDToken
-            public const uint MethodName_MethodToken = 0x6012A57; // MDToken
+            public const uint ClassName_ClassToken = 0x2003117; // MDToken
+            public const uint MethodName_MethodToken = 0x6012A73; // MDToken
             public const string ClassName = @"\uF036";
             public const string MethodName = @"get_LoadUnloadModifier";
         }
 
         public readonly partial struct NoMalfunctions
         {
-            public const uint ClassName_ClassToken = 0x2001A49; // MDToken
-            public const uint GetMalfunctionState_MethodToken = 0x600A563; // MDToken
+            public const uint ClassName_ClassToken = 0x2001A4D; // MDToken
+            public const uint GetMalfunctionState_MethodToken = 0x600A57E; // MDToken
             public const string ClassName = @"EFT.Player+FirearmController";
             public const string GetMalfunctionState = @"GetMalfunctionState";
         }
 
         public readonly partial struct OpticCameraManagerContainer
         {
-            public const uint ClassName_ClassToken = 0x2003407; // MDToken
+            public const uint ClassName_ClassToken = 0x200340B; // MDToken
             public const string ClassName = @"\uF1F5";
         }
 
         public readonly partial struct ScreenManager
         {
-            public const uint ClassName_ClassToken = 0x2003A7A; // MDToken
+            public const uint ClassName_ClassToken = 0x2003A7E; // MDToken
             public const string ClassName = @"\uF28E";
         }
 
         public readonly partial struct FirearmController
         {
-            public const uint ClassName_ClassToken = 0x2001A49; // MDToken
+            public const uint ClassName_ClassToken = 0x2001A4D; // MDToken
             public const string ClassName = @"EFT.Player+FirearmController";
         }
 
         public readonly partial struct GridItemView
         {
-            public const uint MethodName_MethodToken = 0x60163B0; // MDToken
+            public const uint MethodName_MethodToken = 0x60163CC; // MDToken
             public const string MethodName = @"\uE011";
         }
 
         public readonly partial struct ProceduralWeaponAnimation
         {
-            public const uint ClassName_ClassToken = 0x2002725; // MDToken
-            public const uint MethodName_MethodToken = 0x600F2D8; // MDToken
+            public const uint ClassName_ClassToken = 0x2002729; // MDToken
+            public const uint MethodName_MethodToken = 0x600F2F4; // MDToken
             public const string ClassName = @"EFT.Animations.ProceduralWeaponAnimation";
             public const string MethodName = @"get_ShotNeedsFovAdjustments";
         }
 
         public readonly partial struct MovementContext
         {
-            public const uint ClassName_ClassToken = 0x2001C61; // MDToken
-            public const uint MethodName_MethodToken = 0x600B519; // MDToken
+            public const uint ClassName_ClassToken = 0x2001C65; // MDToken
+            public const uint MethodName_MethodToken = 0x600B534; // MDToken
             public const string ClassName = @"EFT.MovementContext";
             public const string MethodName = @"SetPhysicalCondition";
         }
 
         public readonly partial struct GrenadeFlashScreenEffect
         {
-            public const uint ClassName_ClassToken = 0x2000C71; // MDToken
-            public const uint MethodName_MethodToken = 0x60052F1; // MDToken
+            public const uint ClassName_ClassToken = 0x2000C73; // MDToken
+            public const uint MethodName_MethodToken = 0x6005303; // MDToken
             public const string ClassName = @"GrenadeFlashScreenEffect";
             public const string MethodName = @"Update";
         }
 
         public readonly partial struct FovChanger
         {
-            public const uint ClassName_ClassToken = 0x2003407; // MDToken
-            public const uint MethodName_MethodToken = 0x601384F; // MDToken
+            public const uint ClassName_ClassToken = 0x200340B; // MDToken
+            public const uint MethodName_MethodToken = 0x601386B; // MDToken
             public const string ClassName = @"\uF1F5";
             public const string MethodName = @"SetFov";
         }
 
         public readonly partial struct VitalParts
         {
-            public const uint ClassName_ClassToken = 0x20030B8; // MDToken
-            public const uint MethodName_MethodToken = 0x601280E; // MDToken
+            public const uint ClassName_ClassToken = 0x20030BC; // MDToken
+            public const uint MethodName_MethodToken = 0x601282A; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.CompoundItem";
             public const string MethodName = @"\uE007";
         }
 
         public readonly partial struct InventoryLogic_Mod
         {
-            public const uint ClassName_ClassToken = 0x200312F; // MDToken
-            public const uint MethodName_MethodToken = 0x6012AF1; // MDToken
+            public const uint ClassName_ClassToken = 0x2003133; // MDToken
+            public const uint MethodName_MethodToken = 0x6012B0D; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.Mod";
             public const string MethodName = @"get_RaidModdable";
         }

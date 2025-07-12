@@ -45,6 +45,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -67,7 +68,7 @@
 
                                 <CheckBox x:Name="chkAntiPage" Content="Anti-Page" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Row="1" Grid.Column="1" 
+                                          Grid.Row="1" Grid.Column="2" 
                                           Margin="5,0,0,8" Tag="AntiPage"/>
 
                                 <CheckBox x:Name="chkRageMode" Content="Rage Mode" 
@@ -77,11 +78,15 @@
 
                                 <Button x:Name="btnAntiAFK" Content="Anti AFK" 
                                         Grid.Row="4" Grid.Column="0"
-                                        Style="{StaticResource ButtonPrimary}"/>
+                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Left"/>
+
+                                <Button x:Name="btnUnlockMaps" Content="Unlock maps"
+                                        Grid.Row="4" Grid.Column="1"
+                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Center"/>
 
                                 <Button x:Name="btnGymHack" Content="Gym Hack"
-                                        Grid.Row="4" Grid.Column="1"
-                                        Style="{StaticResource ButtonPrimary}"/>
+                                        Grid.Row="4" Grid.Column="2"
+                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Right"/>
                             </Grid>
                         </hc:SimpleStackPanel>
                     </Expander>

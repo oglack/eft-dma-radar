@@ -203,6 +203,7 @@ namespace eft_dma_radar.UI.Pages
             chkRageMode.Checked += MemWritingCheckbox_Checked;
             chkRageMode.Unchecked += MemWritingCheckbox_Checked;
             btnAntiAFK.Click += btnAntiAFK_Click;
+            btnUnlockMaps.Click += btnUnlockMaps_Click;
             btnGymHack.Click += btnGymHack_Click;
 
             // Aimbot Settings
@@ -477,6 +478,7 @@ namespace eft_dma_radar.UI.Pages
             chkRageMode.IsEnabled = memWritingEnabled;
             btnAntiAFK.IsEnabled = memWritingEnabled;
             btnGymHack.IsEnabled = memWritingEnabled;
+            btnUnlockMaps.IsEnabled = memWritingEnabled;
 
             // Aimbot Settings
             ToggleAimbotControls();
@@ -1326,6 +1328,29 @@ namespace eft_dma_radar.UI.Pages
             {
                 btnAntiAFK.Content = "Anti-AFK";
                 btnAntiAFK.IsEnabled = true;
+            }
+        }
+
+        private async void btnUnlockMaps_Click(object sender, RoutedEventArgs e)
+        {
+            btnUnlockMaps.IsEnabled = false;
+
+            try
+            {
+                await Task.Run(() => // Run on non ui thread
+                {
+                    MemWriteFeature<UnlockMaps>.Instance.Set();
+                });
+
+                NotificationsShared.Success("All maps available!\n\n NOTE: If you leave the Main Menu, you may need to re-set this.");
+            }
+            catch (Exception ex)
+            {
+                NotificationsShared.Error($"ERROR unlocking maps! Your memory may be paged out, try close and re-open the game and try again.\n\n ${ex}");
+            }
+            finally
+            {
+                btnUnlockMaps.IsEnabled = true;
             }
         }
 

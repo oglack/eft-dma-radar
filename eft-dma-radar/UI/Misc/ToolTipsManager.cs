@@ -303,6 +303,12 @@ namespace eft_dma_radar.UI.Misc
                 "NOTE: If you leave the Main Menu, you may need to re-set this.\n" +
                 "NOTE: If you have trouble setting this, your memory may be paged out. Try close/reopen the game.";
 
+            if (context.FindName("btnUnlockMaps") is Button btnUnlockMaps)
+                btnUnlockMaps.ToolTip = "Makes all maps available from main menu. No more transits\n" +
+                "NOTE: Set this *right before* you go in raid while you are on the Tarkov Main Menu.\n" +
+                "NOTE: If you leave the Main Menu, you will need to re-set this.\n" +
+                "NOTE: If you have trouble setting this, your memory may be paged out. Try close/reopen the game.";
+
             if (context.FindName("btnGymHack") is Button btnGymHack)
                 btnGymHack.ToolTip = "Enables the Gym Hack Feature which causes your workouts always to succeed.\n" +
                 "NOTE: After enabling this feature you must start a workout within 15 seconds for the hack to be applied. Complete your first rep normally, and then it should activate for following reps.\n" +

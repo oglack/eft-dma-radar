@@ -2607,6 +2607,10 @@ namespace eft_dma_radar.UI.Pages
                     Config.MemWrites.InstantPlant = isActive;
                     mainWindow.MemoryWritingControl.chkInstantPlant.IsChecked = isActive;
                     break;
+                case nameof(HotkeyConfig.UnlockMaps):
+                    if (!MemWrites.Enabled) { NotificationsShared.Error($"ERROR unlocking maps! You have disabled memwrites."); break; }
+                    if (isActive) { UnlockMaps(); }
+                    break;
                 #endregion
 
                 #region General Settings
@@ -2687,6 +2691,23 @@ namespace eft_dma_radar.UI.Pages
             }
 
             WideLean.Direction = WideLean.Direction == dir ? WideLean.EWideLeanDirection.Off : dir;
+        }
+
+        private async void UnlockMaps()
+        {
+            try
+            {
+                await Task.Run(() => // Run on non ui thread
+                {
+                    MemWriteFeature<UnlockMaps>.Instance.Set();
+                });
+
+                NotificationsShared.Success("All maps available!\n\n NOTE: If you leave the Main Menu, you may need to re-set this.");
+            }
+            catch (Exception ex)
+            {
+                NotificationsShared.Error($"ERROR unlocking maps! Your memory may be paged out, try close and re-open the game and try again.\n\n ${ex}");
+            }
         }
 
         private void RefreshHotkeyDisplay()

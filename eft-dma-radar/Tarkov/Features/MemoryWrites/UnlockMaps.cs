@@ -9,7 +9,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
     public sealed class UnlockMaps : MemWriteFeature<UnlockMaps>
     {
         /// <summary>
-        /// Set Anti-Afk.
+        /// Set maps unlock.
         /// </summary>
         /// <exception cref="Exception"></exception>
         public void Set()

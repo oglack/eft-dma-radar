@@ -107,6 +107,7 @@ namespace eft_dma_shared.Common.Misc.Data.EFT
         // Misc
         [JsonPropertyName("bigHeads")] public HotkeyEntry BigHeads { get; set; } = new();
         [JsonPropertyName("instantPlant")] public HotkeyEntry InstantPlant { get; set; } = new();
+        [JsonPropertyName("unlockMaps")] public HotkeyEntry UnlockMaps { get; set; } = new();
         #endregion
 
         #region General Settings

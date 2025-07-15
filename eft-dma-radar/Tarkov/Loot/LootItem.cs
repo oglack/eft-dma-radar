@@ -33,6 +33,9 @@ namespace eft_dma_radar.Tarkov.Loot
         public static EntityTypeSettings QuestItemSettings => Config.EntityTypeSettings.GetSettings("QuestItem");
         public static EntityTypeSettingsESP QuestItemESPSettings => ESP.Config.EntityTypeESPSettings.GetSettings("QuestItem");
 
+        public static EntityTypeSettings AirdropSettings => Config.EntityTypeSettings.GetSettings("Airdrop");
+        public static EntityTypeSettingsESP AirdropESPSettings => ESP.Config.EntityTypeESPSettings.GetSettings("Airdrop");
+
         private static bool QuestHelperEnabled = Config.QuestHelper.Enabled;
 
         private const float HEIGHT_INDICATOR_THRESHOLD = 1.85f;
@@ -286,14 +289,32 @@ namespace eft_dma_radar.Tarkov.Loot
             {
                 if (Blacklisted)
                     return false;
-                
+
                 if (IsCurrency)
                     return false;
 
                 if (this is LootContainer container)
                     return container.Loot.Any(x => x.IsQuestCondition);
 
-                return Memory.QuestManager?.ItemConditions?.Contains(ID) ?? false;
+                var questManager = Memory.QuestManager;
+                if (questManager == null)
+                    return false;
+
+                if (!questManager.IsItemRequired(ID))
+                    return false;
+
+                if (!Config.QuestHelper.OptionalTaskFilter)
+                {
+                    var hasNonOptionalRequirement = questManager.ActiveQuests.Any(quest =>
+                        quest.Objectives.Any(obj =>
+                            !obj.Optional &&
+                            !obj.IsCompleted &&
+                            obj.RequiredItemIds.Contains(ID)));
+
+                    return hasNonOptionalRequirement;
+                }
+
+                return true;
             }
         }
 
@@ -308,7 +329,7 @@ namespace eft_dma_radar.Tarkov.Loot
                 return container.Loot.Any(x => x.ContainsSearchPredicate(predicate));
 
             return predicate(this);
-        } 
+        }
 
         public virtual void Draw(SKCanvas canvas, LoneMapParams mapParams, ILocalPlayer localPlayer)
         {
@@ -317,10 +338,10 @@ namespace eft_dma_radar.Tarkov.Loot
 
             EntityTypeSettings entitySettings;
 
-            if (this is LootCorpse)
-            {
+            if (this is LootAirdrop)
+                entitySettings = AirdropSettings;
+            else if (this is LootCorpse)
                 entitySettings = CorpseSettings;
-            }
             else if (this is QuestItem || (QuestHelperEnabled && IsQuestCondition))
                 entitySettings = QuestItemSettings;
             else if (IsImportant || IsValuableLoot)
@@ -402,10 +423,10 @@ namespace eft_dma_radar.Tarkov.Loot
 
             EntityTypeSettingsESP espSettings;
 
-            if (this is QuestItem || (QuestHelperEnabled && IsQuestCondition))
-            {
+            if (this is LootAirdrop)
+                espSettings = AirdropESPSettings;
+            else if (this is QuestItem || (QuestHelperEnabled && IsQuestCondition))
                 espSettings = QuestItemESPSettings;
-            }
             else if (this is LootCorpse)
             {
                 espSettings = CorpseESPSettings;
@@ -414,13 +435,9 @@ namespace eft_dma_radar.Tarkov.Loot
                     return;
             }
             else if (IsImportant || IsValuableLoot)
-            {
                 espSettings = ImportantLootESPSettings;
-            }
             else
-            {
                 espSettings = LootESPSettings;
-            }
 
             var dist = Vector3.Distance(localPlayer.Position, Position);
             if (dist > espSettings.RenderDistance)
@@ -835,10 +852,45 @@ namespace eft_dma_radar.Tarkov.Loot
             return label;
         }
 
-        private ValueTuple<SKPaint, SKPaint> GetPaints()
+        private static SKColor? GetCorpseFilterColor(LootCorpse corpse)
         {
-            if (this is LootCorpse)
+            if (corpse.Loot != null)
+            {
+                foreach (var item in corpse.Loot.OrderByDescending(x => x.IsImportant))
+                {
+                    var matchedFilter = item.MatchedFilter;
+                    if (matchedFilter != null && !string.IsNullOrEmpty(matchedFilter.Color))
+                    {
+                        if (SKColor.TryParse(matchedFilter.Color, out var filterColor))
+                            return filterColor;
+                    }
+
+                    if (item.IsWishlisted)
+                        return SKPaints.PaintWishlistItem.Color;
+                    if (item is QuestItem || (Config.QuestHelper.Enabled && item.IsQuestCondition))
+                        return SKPaints.PaintQuestItem.Color;
+                    if (item.IsValuableLoot)
+                        return SKPaints.PaintImportantLoot.Color;
+                }
+            }
+
+            return null;
+        }
+
+        public ValueTuple<SKPaint, SKPaint> GetPaints()
+        {
+            if (this is LootAirdrop)
+                return new(SKPaints.PaintAirdrop, SKPaints.TextAirdrop);
+            if (this is LootCorpse corpse)
+            {
+                var filterColor = GetCorpseFilterColor(corpse);
+                if (filterColor.HasValue)
+                {
+                    var filterPaints = GetFilterPaints(filterColor.Value.ToString());
+                    return new(filterPaints.Item1, filterPaints.Item2);
+                }
                 return new(SKPaints.PaintCorpse, SKPaints.TextCorpse);
+            }
             if (IsWishlisted)
                 return new(SKPaints.PaintWishlistItem, SKPaints.TextWishlistItem);
             if (this is QuestItem)
@@ -862,16 +914,69 @@ namespace eft_dma_radar.Tarkov.Loot
                 return new(filterPaints.Item1, filterPaints.Item2);
             }
 
-            if (IsValuableLoot || this is LootAirdrop)
+            if (IsValuableLoot)
                 return new(SKPaints.PaintImportantLoot, SKPaints.TextImportantLoot);
 
             return new(SKPaints.PaintLoot, SKPaints.TextLoot);
         }
 
+        public SKPaint GetMiniRadarPaint()
+        {
+            if (this is LootAirdrop)
+                return SKPaints.PaintMiniAirdrop;
+            if (this is LootCorpse corpse)
+            {
+                var filterColor = GetCorpseFilterColor(corpse);
+                if (filterColor.HasValue)
+                {
+                    var filterPaints = GetFilterPaints(filterColor.Value.ToString());
+                    return filterPaints.Item1;
+                }
+                return SKPaints.PaintMiniCorpse;
+            }
+            if (IsWishlisted)
+                return SKPaints.PaintMiniWishlistItem;
+            if (this is QuestItem)
+                return SKPaints.MiniQuestHelperPaint;
+            if (Config.QuestHelper.Enabled && IsQuestCondition)
+                return SKPaints.PaintMiniQuestItem;
+            if (LootFilterControl.ShowBackpacks && IsBackpack)
+                return SKPaints.PaintMiniBackpacks;
+            if (LootFilterControl.ShowMeds && IsMeds)
+                return SKPaints.PaintMiniMeds;
+            if (LootFilterControl.ShowFood && IsFood)
+                return SKPaints.PaintMiniFood;
+
+            string color = this is LootContainer ctr
+                ? ctr.Loot.FirstOrDefault(x => x.Important)?.MatchedFilter?.Color
+                : MatchedFilter?.Color;
+
+            if (!string.IsNullOrEmpty(color))
+            {
+                var filterPaints = GetFilterPaints(color);
+                return filterPaints.Item1;
+            }
+
+            if (IsValuableLoot)
+                return SKPaints.PaintMiniImportantLoot;
+
+            return SKPaints.PaintMiniLoot;
+        }
+
         public ValueTuple<SKPaint, SKPaint> GetESPPaints()
         {
-            if (this is LootCorpse)
+            if (this is LootAirdrop)
+                return new(SKPaints.PaintAirdropESP, SKPaints.TextAirdropESP);
+            if (this is LootCorpse corpse)
+            {
+                var filterColor = GetCorpseFilterColor(corpse);
+                if (filterColor.HasValue)
+                {
+                    var filterPaints = GetFilterPaints(filterColor.Value.ToString());
+                    return new(filterPaints.Item3, filterPaints.Item4);
+                }
                 return new(SKPaints.PaintCorpseESP, SKPaints.TextCorpseESP);
+            }
             if (IsWishlisted)
                 return new(SKPaints.PaintWishlistItemESP, SKPaints.TextWishlistItemESP);
             if (this is QuestItem)

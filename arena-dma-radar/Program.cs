@@ -52,7 +52,7 @@ namespace arena_dma_radar
     internal static class Program
     {
         internal const string Name = "Arena DMA Radar";
-        internal const string Version = "1.0.0";
+        internal const string Version = "1.1.2";
 
         /// <summary>
         /// Current application mode

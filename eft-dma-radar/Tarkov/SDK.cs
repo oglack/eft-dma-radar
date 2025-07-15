@@ -387,7 +387,6 @@ namespace SDK
             public const uint MovementContext = 0x58; // EFT.MovementContext
             public const uint _playerBody = 0xC0; // EFT.PlayerBody
             public const uint ProceduralWeaponAnimation = 0x1E0; // EFT.Animations.ProceduralWeaponAnimation
-            public const uint World = 0x3A0; // EFT.GameWorld
             public const uint _animators = 0x3A8; // -.IAnimator[]
             public const uint Corpse = 0x3E0; // EFT.Interactive.Corpse
             public const uint Location = 0x5D8; // String
@@ -581,7 +580,7 @@ namespace SDK
             public const uint EntryPoint = 0x18; // String
             public const uint GroupId = 0x28; // String
             public const uint Settings = 0x48; // -.\uE90E
-            public const uint Side = 0x88; // System.Int32
+            public const uint Side = 0x88; // [HUMAN] Int32
             public const uint RegistrationDate = 0x8C; // Int32
             public const uint MemberCategory = 0x98; // System.Int32
             public const uint Experience = 0x9C; // Int32
@@ -820,6 +819,17 @@ namespace SDK
             public const uint _id = 0x50; // EFT.MongoID
             public const uint Weight = 0xB0; // Single
             public const uint QuestItem = 0xBC; // Boolean
+        }
+
+        public readonly partial struct MedicalTemplate
+        {
+            public const uint BodyPartTimeMults = 0x130; // System.Collections.Generic.KeyValuePair`2[]
+            public const uint HealthEffects = 0x138; // System.Collections.Generic.Dictionary<Int32, \uE6CF>
+            public const uint DamageEffects = 0x140; // System.Collections.Generic.Dictionary<Int32, \uE6CE>
+            public const uint StimulatorBuffs = 0x148; // String
+            public const uint UseTime = 0x150; // Single
+            public const uint MaxHpResource = 0x154; // Int32
+            public const uint HpResourceRate = 0x158; // Single
         }
 
         public readonly partial struct ModTemplate

@@ -21,6 +21,7 @@ using Clipboard = System.Windows.Clipboard;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
 using UserControl = System.Windows.Controls.UserControl;
+using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 
 namespace arena_dma_radar.UI.Pages
 {
@@ -310,7 +311,7 @@ namespace arena_dma_radar.UI.Pages
             {
                 if (Player.PlayerWatchlist.Entries.ContainsKey(id))
                 {
-                    if (HandyControl.Controls.MessageBox.Show(
+                    if (MessageBox.Show(
                         $"An entry with Account ID '{id}' already exists. Update it?",
                         "Duplicate Entry",
                         MessageBoxButton.YesNo,
@@ -352,7 +353,7 @@ namespace arena_dma_radar.UI.Pages
 
             if (selectedEntry != null)
             {
-                if (HandyControl.Controls.MessageBox.Show(
+                if (MessageBox.Show(
                     $"Are you sure you want to remove '{selectedEntry.AccountID}' from the watchlist?",
                     "Confirm Removal",
                     MessageBoxButton.YesNo,
@@ -590,7 +591,7 @@ namespace arena_dma_radar.UI.Pages
                     return;
                 }
 
-                var result = HandyControl.Controls.MessageBox.Show(
+                var result = MessageBox.Show(
                     $"Found {watchlistEntries.Count} watchlist entries in clipboard.\n\n" +
                     "Do you want to:\n" +
                     "YES: Add these entries to your existing ones\n" +
@@ -633,7 +634,7 @@ namespace arena_dma_radar.UI.Pages
 
                         if (existingEntries.Contains(entry.AccountID))
                         {
-                            var replaceResult = HandyControl.Controls.MessageBox.Show(
+                            var replaceResult = MessageBox.Show(
                                 $"An entry with Account ID '{entry.AccountID}' already exists.\n" +
                                 "Do you want to replace it?",
                                 "Duplicate Entry",

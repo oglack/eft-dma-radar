@@ -1,383 +1,603 @@
-﻿using eft_dma_radar.Tarkov.EFTPlayer;
-using eft_dma_radar.Tarkov.Loot;
-using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.Pages;
-using eft_dma_shared.Common.Misc;
-using eft_dma_shared.Common.Players;
-using eft_dma_shared.Common.Unity;
-using SkiaSharp;
-using SkiaSharp.Views.WPF;
+﻿using SkiaSharp;
+using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Windows.Forms;
 
-namespace eft_dma_radar.UI.SKWidgetControl
+namespace eft_dma_radar.UI.ESP
 {
-    public sealed class EspWidget : SKWidget
+    public abstract class ESPWidget : IDisposable
     {
-        private SKBitmap _espBitmap;
-        private SKCanvas _espCanvas;
-        private readonly float _textOffsetY;
-        private readonly float _boxHalfSize;
-        private static Config Config => Program.Config;
+        #region Static Fields
+        private static readonly Dictionary<SKGLControl, List<ESPWidget>> _widgetsByParent = new();
+        private static readonly object _widgetsLock = new();
+        private static ESPWidget _capturedWidget = null;
+        private static readonly Dictionary<SKGLControl, bool> _registeredParents = new();
+        #endregion
 
-        public EspWidget(SKGLElement parent, SKRect location, bool minimized, float scale)
-            : base(parent, "ESP", new SKPoint(location.Left, location.Top), new SKSize(location.Width, location.Height), scale)
+        #region Instance Fields
+        private readonly object _sync = new();
+        private readonly SKGLControl _parent;
+        private bool _titleDrag = false;
+        private bool _resizeDrag = false;
+        private SKPoint _lastMousePosition;
+        private SKPoint _location = new(1, 1);
+        private SKSize _size = new(300, 300);
+        private SKPath _resizeTriangle;
+        private float _relativeX;
+        private float _relativeY;
+        private bool _isDragging = false;
+        private int _zIndex;
+        #endregion
+
+        #region Private Properties
+        private float TitleBarHeight => 18f * ScaleFactor;
+        private SKRect TitleBar => new(Rectangle.Left, Rectangle.Top, Rectangle.Right, Rectangle.Top + TitleBarHeight);
+        private SKRect MinimizeButton => new(TitleBar.Right - TitleBarHeight, TitleBar.Top, TitleBar.Right, TitleBar.Bottom);
+        #endregion
+
+        #region Protected Properties
+        protected string Title { get; set; }
+        protected string RightTitleInfo { get; set; }
+        protected bool CanResize { get; }
+        protected float ScaleFactor { get; private set; }
+        protected SKPath ResizeTriangle => _resizeTriangle;
+        #endregion
+
+        #region Public Properties
+        public bool Minimized { get; protected set; }
+        public SKRect ClientRectangle => new(Rectangle.Left, Rectangle.Top + TitleBarHeight, Rectangle.Right, Rectangle.Bottom);
+        public SKRect ClientRect => new SKRect(Location.X, Location.Y, Location.X + Size.Width, Location.Y + Size.Height);
+
+        public int ZIndex
         {
-            _espBitmap = new SKBitmap((int)location.Width, (int)location.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
-            _espCanvas = new SKCanvas(_espBitmap);
-            _textOffsetY = 12.5f * scale;
-            _boxHalfSize = 4f * scale;
-            Minimized = minimized;
-            SetScaleFactor(scale);
-        }
-
-        private static LocalPlayer LocalPlayer => Memory.LocalPlayer;
-        private static IReadOnlyCollection<Player> AllPlayers => Memory.Players;
-        private static bool InRaid => Memory.InRaid;
-        private static IEnumerable<LootItem> Loot => Memory.Loot?.FilteredLoot;
-        private static IEnumerable<StaticLootContainer> Containers => Memory.Loot?.StaticLootContainers;
-
-        public override void Draw(SKCanvas canvas)
-        {
-            base.Draw(canvas);
-            if (!Minimized)
-                RenderESPWidget(canvas, ClientRectangle);
-        }
-
-        private void RenderESPWidget(SKCanvas parent, SKRect dest)
-        {
-            EnsureBitmapSize();
-
-            _espCanvas.Clear(SKColors.Transparent);
-
-            try
+            get => _zIndex;
+            set
             {
-                var inRaid = InRaid;
-                var localPlayer = LocalPlayer;
+                _zIndex = value;
+                SortWidgetsForParent(_parent);
+            }
+        }
 
-                if (inRaid && localPlayer != null)
+        public SKSize Size
+        {
+            get => _size;
+            set
+            {
+                lock (_sync)
                 {
-                    if (Config.ProcessLoot)
+                    if (!float.IsNormal(value.Width) && value.Width != 0f)
+                        return;
+                    if (!float.IsNormal(value.Height) && value.Height != 0f)
+                        return;
+                    if (value.Width < 0f || value.Height < 0f)
+                        return;
+                    value.Width = (int)value.Width;
+                    value.Height = (int)value.Height;
+                    _size = value;
+                    InitializeResizeTriangle();
+                }
+            }
+        }
+
+        public SKPoint Location
+        {
+            get => _location;
+            set
+            {
+                lock (_sync)
+                {
+                    if ((value.X != 0f && !float.IsNormal(value.X)) ||
+                        (value.Y != 0f && !float.IsNormal(value.Y)))
+                        return;
+
+                    var clientRect = new SKRect(0, 0, _parent.Width, _parent.Height);
+                    if (clientRect.Width == 0 || clientRect.Height == 0)
+                        return;
+
+                    _location = value;
+                    CorrectLocationBounds(clientRect);
+                    _relativeX = value.X / clientRect.Width;
+                    _relativeY = value.Y / clientRect.Height;
+                    InitializeResizeTriangle();
+                }
+            }
+        }
+
+        public SKRect Rectangle => new SKRect(Location.X,
+            Location.Y,
+            Location.X + Size.Width,
+            Location.Y + Size.Height + TitleBarHeight);
+        #endregion
+
+        #region Constructor
+        protected ESPWidget(SKGLControl parent, string title, SKPoint location, SKSize clientSize, float scaleFactor, bool canResize = true)
+        {
+            _parent = parent;
+            CanResize = canResize;
+            Title = title;
+            ScaleFactor = scaleFactor;
+            Size = clientSize;
+            Location = location;
+
+            EnsureParentEventHandlers(parent);
+            RegisterWidget(parent, this);
+
+            InitializeResizeTriangle();
+        }
+
+        private static void RegisterWidget(SKGLControl parent, ESPWidget widget)
+        {
+            lock (_widgetsLock)
+            {
+                if (!_widgetsByParent.ContainsKey(parent))
+                    _widgetsByParent[parent] = new List<ESPWidget>();
+
+                widget._zIndex = _widgetsByParent[parent].Count;
+                _widgetsByParent[parent].Add(widget);
+                SortWidgetsForParent(parent);
+            }
+        }
+
+        private static void EnsureParentEventHandlers(SKGLControl parent)
+        {
+            lock (_registeredParents)
+            {
+                if (_registeredParents.TryGetValue(parent, out bool registered) && registered)
+                    return;
+
+                parent.MouseDown += Parent_MouseDown;
+                parent.MouseUp += Parent_MouseUp;
+                parent.MouseMove += Parent_MouseMove;
+                parent.MouseLeave += Parent_MouseLeave;
+
+                _registeredParents[parent] = true;
+            }
+        }
+
+        private static void SortWidgetsForParent(SKGLControl parent)
+        {
+            lock (_widgetsLock)
+            {
+                if (_widgetsByParent.TryGetValue(parent, out var widgets))
+                {
+                    widgets.Sort((a, b) => a.ZIndex.CompareTo(b.ZIndex));
+                }
+            }
+        }
+
+        public void BringToFront()
+        {
+            lock (_widgetsLock)
+            {
+                if (_widgetsByParent.TryGetValue(_parent, out var widgets))
+                {
+                    int highestZ = 0;
+                    foreach (var widget in widgets)
                     {
-                        DrawLoot(localPlayer);
-                        DrawContainers(localPlayer);
+                        if (widget != this && widget._zIndex > highestZ)
+                            highestZ = widget._zIndex;
                     }
 
-                    DrawPlayers();
-                    DrawCrosshair();
+                    ZIndex = highestZ + 1;
                 }
             }
-            catch (Exception ex)
-            {
-                LoneLogging.WriteLine($"CRITICAL ESP WIDGET RENDER ERROR: {ex}");
-            }
-
-            _espCanvas.Flush();
-            parent.DrawBitmap(_espBitmap, dest, SharedPaints.PaintBitmap);
         }
+        #endregion
 
-        private void EnsureBitmapSize()
+        #region Static Event Handlers
+        private static void Parent_MouseDown(object sender, MouseEventArgs e)
         {
-            var size = Size;
-            if (_espBitmap == null || _espCanvas == null ||
-                _espBitmap.Width != size.Width || _espBitmap.Height != size.Height)
+            var parent = sender as SKGLControl;
+            if (parent == null) return;
+
+            var position = new SKPoint(e.X, e.Y);
+            ESPWidget hitWidget = null;
+
+            lock (_widgetsLock)
             {
-                _espCanvas?.Dispose();
-                _espCanvas = null;
-                _espBitmap?.Dispose();
-                _espBitmap = null;
-
-                _espBitmap = new SKBitmap((int)size.Width, (int)size.Height,
-                    SKImageInfo.PlatformColorType, SKAlphaType.Premul);
-                _espCanvas = new SKCanvas(_espBitmap);
-            }
-        }
-
-        private void DrawLoot(LocalPlayer localPlayer)
-        {
-            var loot = Loot;
-            if (loot == null) return;
-
-            foreach (var item in loot)
-            {
-                var dist = Vector3.Distance(localPlayer.Position, item.Position);
-                if (dist >= 10f) continue;
-
-                if (!CameraManagerBase.WorldToScreen(ref item.Position, out var itemScrPos)) continue;
-
-                var adjPos = ScaleESPPoint(itemScrPos);
-                var boxPt = new SKRect(
-                    adjPos.X - _boxHalfSize,
-                    adjPos.Y + _boxHalfSize,
-                    adjPos.X + _boxHalfSize,
-                    adjPos.Y - _boxHalfSize);
-
-                var textPt = new SKPoint(adjPos.X, adjPos.Y + _textOffsetY);
-
-                _espCanvas.DrawRect(boxPt, PaintESPWidgetLoot);
-                var label = item.GetUILabel() + $" ({dist:n1}m)";
-                _espCanvas.DrawText(label, textPt, TextESPWidgetLoot);
-            }
-        }
-
-        private void DrawContainers(LocalPlayer localPlayer)
-        {
-            if (!Config.Containers.Show) return;
-
-            var containers = Containers;
-            if (containers == null) return;
-
-            foreach (var container in containers)
-            {
-                if (!LootSettingsControl.ContainerIsTracked(container.ID ?? "NULL")) continue;
-
-                if (Config.Containers.HideSearched && container.Searched) continue;
-
-                var dist = Vector3.Distance(localPlayer.Position, container.Position);
-                if (dist >= 10f) continue;
-
-                if (!CameraManagerBase.WorldToScreen(ref container.Position, out var containerScrPos)) continue;
-
-                var adjPos = ScaleESPPoint(containerScrPos);
-                var boxPt = new SKRect(
-                    adjPos.X - _boxHalfSize,
-                    adjPos.Y + _boxHalfSize,
-                    adjPos.X + _boxHalfSize,
-                    adjPos.Y - _boxHalfSize);
-
-                var textPt = new SKPoint(adjPos.X, adjPos.Y + _textOffsetY);
-
-                _espCanvas.DrawRect(boxPt, PaintESPWidgetLoot);
-                var label = $"{container.Name} ({dist:n1}m)";
-                _espCanvas.DrawText(label, textPt, TextESPWidgetLoot);
-            }
-        }
-
-        private void DrawPlayers()
-        {
-            var allPlayers = AllPlayers?
-                .Where(x => x.IsActive && x.IsAlive && x is not Tarkov.EFTPlayer.LocalPlayer);
-
-            if (allPlayers == null) return;
-
-            var scaleX = _espBitmap.Width / (float)CameraManagerBase.Viewport.Width;
-            var scaleY = _espBitmap.Height / (float)CameraManagerBase.Viewport.Height;
-
-            foreach (var player in allPlayers)
-            {
-                if (player.Skeleton.UpdateESPWidgetBuffer(scaleX, scaleY))
+                if (_widgetsByParent.TryGetValue(parent, out var widgets))
                 {
-                    _espCanvas.DrawPoints(SKPointMode.Lines, Skeleton.ESPWidgetBuffer, GetPlayerPaint(player));
+                    for (int i = widgets.Count - 1; i >= 0; i--)
+                    {
+                        var widget = widgets[i];
+                        var test = widget.HitTest(position);
+                        if (test != WidgetClickEvent.None)
+                        {
+                            hitWidget = widget;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (hitWidget != null)
+            {
+                hitWidget.BringToFront();
+                hitWidget.HandleMouseDown(position, e);
+            }
+        }
+
+        private static void Parent_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (_capturedWidget != null)
+            {
+                var position = new SKPoint(e.X, e.Y);
+                _capturedWidget.HandleMouseUp(position, e);
+                _capturedWidget = null;
+            }
+            else
+            {
+                var parent = sender as SKGLControl;
+                if (parent == null) return;
+
+                var position = new SKPoint(e.X, e.Y);
+
+                lock (_widgetsLock)
+                {
+                    if (_widgetsByParent.TryGetValue(parent, out var widgets))
+                    {
+                        for (int i = widgets.Count - 1; i >= 0; i--)
+                        {
+                            var widget = widgets[i];
+                            var test = widget.HitTest(position);
+                            if (test == WidgetClickEvent.ClickedMinimize)
+                            {
+                                widget.Minimized = !widget.Minimized;
+                                widget.Location = widget.Location;
+                                parent.Invalidate();
+                                break;
+                            }
+                            else if (test == WidgetClickEvent.ClickedClientArea)
+                            {
+                                if (widget.HandleClientAreaClick(position))
+                                {
+                                    parent.Invalidate();
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        private void DrawCrosshair()
+        private static void Parent_MouseMove(object sender, MouseEventArgs e)
         {
-            var bounds = _espBitmap.Info.Rect;
-            float centerX = bounds.Left + bounds.Width / 2;
-            float centerY = bounds.Top + bounds.Height / 2;
-
-            _espCanvas.DrawLine(bounds.Left, centerY, bounds.Right, centerY, PaintESPWidgetCrosshair);
-            _espCanvas.DrawLine(centerX, bounds.Top, centerX, bounds.Bottom, PaintESPWidgetCrosshair);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private SKPoint ScaleESPPoint(SKPoint original)
-        {
-            var scaleX = _espBitmap.Width / (float)CameraManagerBase.Viewport.Width;
-            var scaleY = _espBitmap.Height / (float)CameraManagerBase.Viewport.Height;
-
-            return new SKPoint(original.X * scaleX, original.Y * scaleY);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static SKPaint GetPlayerPaint(Player player)
-        {
-            if (player.IsAimbotLocked)
-                return PaintESPWidgetAimbotLocked;
-
-            if (player.IsFocused)
-                return PaintESPWidgetFocused;
-
-            if (player is LocalPlayer)
-                return PaintESPWidgetLocalPlayer;
-
-            switch (player.Type)
+            if (_capturedWidget != null)
             {
-                case Player.PlayerType.Teammate:
-                    return PaintESPWidgetTeammate;
-                case Player.PlayerType.USEC:
-                    return PaintESPWidgetUSEC;
-                case Player.PlayerType.BEAR:
-                    return PaintESPWidgetBEAR;
-                case Player.PlayerType.AIScav:
-                    return PaintESPWidgetScav;
-                case Player.PlayerType.AIRaider:
-                    return PaintESPWidgetRaider;
-                case Player.PlayerType.AIBoss:
-                    return PaintESPWidgetBoss;
-                case Player.PlayerType.PScav:
-                    return PaintESPWidgetPScav;
-                case Player.PlayerType.SpecialPlayer:
-                    return PaintESPWidgetSpecial;
-                case Player.PlayerType.Streamer:
-                    return PaintESPWidgetStreamer;
-                default:
-                    return PaintESPWidgetUSEC;
+                if (e.Button != MouseButtons.Left)
+                {
+                    _capturedWidget._titleDrag = false;
+                    _capturedWidget._resizeDrag = false;
+                    _capturedWidget._isDragging = false;
+                    _capturedWidget = null;
+                    return;
+                }
+
+                var position = new SKPoint(e.X, e.Y);
+                _capturedWidget.HandleMouseMove(position, e);
             }
         }
 
-        public override void SetScaleFactor(float newScale)
+        private static void Parent_MouseLeave(object sender, EventArgs e)
         {
-            base.SetScaleFactor(newScale);
+            // Keep capture for dragging outside control
+        }
+        #endregion
 
-            lock (PaintESPWidgetCrosshair)
+        #region Instance Event Handlers
+        private void HandleMouseDown(SKPoint position, MouseEventArgs e)
+        {
+            _lastMousePosition = position;
+
+            var test = HitTest(position);
+            switch (test)
             {
-                PaintESPWidgetCrosshair.StrokeWidth = 1 * newScale;
-                PaintESPWidgetLocalPlayer.StrokeWidth = 1 * newScale;
-                PaintESPWidgetUSEC.StrokeWidth = 1 * newScale;
-                PaintESPWidgetBEAR.StrokeWidth = 1 * newScale;
-                PaintESPWidgetSpecial.StrokeWidth = 1 * newScale;
-                PaintESPWidgetStreamer.StrokeWidth = 1 * newScale;
-                PaintESPWidgetTeammate.StrokeWidth = 1 * newScale;
-                PaintESPWidgetBoss.StrokeWidth = 1 * newScale;
-                PaintESPWidgetAimbotLocked.StrokeWidth = 1 * newScale;
-                PaintESPWidgetScav.StrokeWidth = 1 * newScale;
-                PaintESPWidgetRaider.StrokeWidth = 1 * newScale;
-                PaintESPWidgetPScav.StrokeWidth = 1 * newScale;
-                PaintESPWidgetFocused.StrokeWidth = 1 * newScale;
-                PaintESPWidgetLoot.StrokeWidth = 0.75f * newScale;
-                TextESPWidgetLoot.TextSize = 9f * newScale;
+                case WidgetClickEvent.ClickedTitleBar:
+                    _titleDrag = true;
+                    _isDragging = true;
+                    _capturedWidget = this;
+                    break;
+
+                case WidgetClickEvent.ClickedResize:
+                    if (CanResize)
+                    {
+                        _resizeDrag = true;
+                        _isDragging = true;
+                        _capturedWidget = this;
+                    }
+                    break;
             }
         }
 
-        public override void Dispose()
+        private void HandleMouseUp(SKPoint position, MouseEventArgs e)
         {
-            _espBitmap?.Dispose();
-            _espCanvas?.Dispose();
-            _espBitmap = null;
-            _espCanvas = null;
-            base.Dispose();
+            _titleDrag = false;
+            _resizeDrag = false;
+            _isDragging = false;
         }
 
-        #region Mini ESP Paints
-        private static SKPaint PaintESPWidgetCrosshair { get; } = new()
+        private void HandleMouseMove(SKPoint position, MouseEventArgs e)
         {
-            Color = SKColors.White,
+            if (_resizeDrag && CanResize)
+            {
+                if (position.X < Rectangle.Left || position.Y < Rectangle.Top)
+                    return;
+
+                var newSize = new SKSize(
+                    Math.Abs(Rectangle.Left - position.X),
+                    Math.Abs(Rectangle.Top - position.Y));
+
+                Size = newSize;
+                _parent.Invalidate();
+            }
+            else if (_titleDrag)
+            {
+                float deltaX = position.X - _lastMousePosition.X;
+                float deltaY = position.Y - _lastMousePosition.Y;
+
+                var newLoc = new SKPoint(Location.X + deltaX, Location.Y + deltaY);
+                Location = newLoc;
+
+                _parent.Invalidate();
+            }
+
+            _lastMousePosition = position;
+        }
+        #endregion
+
+        #region Hit Testing
+        private WidgetClickEvent HitTest(SKPoint point)
+        {
+            var result = WidgetClickEvent.None;
+            var clicked = point.X >= Rectangle.Left && point.X <= Rectangle.Right &&
+                         point.Y >= Rectangle.Top && point.Y <= Rectangle.Bottom;
+
+            if (!clicked)
+                return result;
+
+            result = WidgetClickEvent.Clicked;
+
+            var titleClicked = point.X >= TitleBar.Left && point.X <= TitleBar.Right &&
+                              point.Y >= TitleBar.Top && point.Y <= TitleBar.Bottom;
+
+            if (titleClicked)
+            {
+                result = WidgetClickEvent.ClickedTitleBar;
+
+                var minClicked = point.X >= MinimizeButton.Left && point.X <= MinimizeButton.Right &&
+                                point.Y >= MinimizeButton.Top && point.Y <= MinimizeButton.Bottom;
+
+                if (minClicked)
+                    result = WidgetClickEvent.ClickedMinimize;
+            }
+
+            if (!Minimized)
+            {
+                var clientClicked = point.X >= ClientRectangle.Left && point.X <= ClientRectangle.Right &&
+                                   point.Y >= ClientRectangle.Top && point.Y <= ClientRectangle.Bottom;
+
+                if (clientClicked)
+                    result = WidgetClickEvent.ClickedClientArea;
+
+                if (CanResize && _resizeTriangle != null && _resizeTriangle.Contains(point.X, point.Y))
+                    result = WidgetClickEvent.ClickedResize;
+            }
+
+            return result;
+        }
+        #endregion
+
+        #region Virtual Methods
+        public virtual bool HandleClientAreaClick(SKPoint point)
+        {
+            return false;
+        }
+        #endregion
+
+        #region Public Methods
+        public virtual void Draw(SKCanvas canvas)
+        {
+            if (!Minimized)
+                canvas.DrawRect(Rectangle, WidgetBackgroundPaint);
+
+            canvas.DrawRect(TitleBar, TitleBarPaint);
+            var titleCenterY = TitleBar.Top + (TitleBar.Height / 2);
+            var titleYOffset = (TitleBarText.FontMetrics.Ascent + TitleBarText.FontMetrics.Descent) / 2;
+
+            canvas.DrawText(Title,
+                new(TitleBar.Left + 2.5f * ScaleFactor,
+                titleCenterY - titleYOffset),
+                TitleBarText);
+
+            if (!string.IsNullOrEmpty(RightTitleInfo))
+            {
+                var rightInfoWidth = RightTitleInfoText.MeasureText(RightTitleInfo);
+                var rightX = TitleBar.Right - rightInfoWidth - 2.5f * ScaleFactor - TitleBarHeight;
+
+                canvas.DrawText(RightTitleInfo,
+                    new(rightX, titleCenterY - titleYOffset),
+                    RightTitleInfoText);
+            }
+
+            canvas.DrawRect(MinimizeButton, ButtonBackgroundPaint);
+
+            DrawMinimizeButton(canvas);
+
+            if (!Minimized && CanResize)
+                DrawResizeCorner(canvas);
+        }
+
+        public virtual void SetScaleFactor(float newScale)
+        {
+            ScaleFactor = newScale;
+            InitializeResizeTriangle();
+
+            TitleBarText.TextSize = 12F * newScale;
+            RightTitleInfoText.TextSize = 12F * newScale;
+            SymbolPaint.StrokeWidth = 2f * newScale;
+        }
+        #endregion
+
+        #region Private Methods
+        private void CorrectLocationBounds(SKRect clientRectangle)
+        {
+            var rect = Minimized ? TitleBar : Rectangle;
+            var topMargin = 6;
+
+            if (rect.Left < clientRectangle.Left)
+                _location = new SKPoint(clientRectangle.Left, _location.Y);
+            else if (rect.Right > clientRectangle.Right)
+                _location = new SKPoint(clientRectangle.Right - rect.Width, _location.Y);
+
+            if (rect.Top < clientRectangle.Top + topMargin)
+                _location = new SKPoint(_location.X, clientRectangle.Top + topMargin);
+            else if (rect.Bottom > clientRectangle.Bottom)
+                _location = new SKPoint(_location.X, clientRectangle.Bottom - rect.Height);
+        }
+
+        private void DrawMinimizeButton(SKCanvas canvas)
+        {
+            var minHalfLength = MinimizeButton.Width / 4;
+
+            if (Minimized)
+            {
+                canvas.DrawLine(MinimizeButton.MidX - minHalfLength,
+                    MinimizeButton.MidY,
+                    MinimizeButton.MidX + minHalfLength,
+                    MinimizeButton.MidY,
+                    SymbolPaint);
+                canvas.DrawLine(MinimizeButton.MidX,
+                    MinimizeButton.MidY - minHalfLength,
+                    MinimizeButton.MidX,
+                    MinimizeButton.MidY + minHalfLength,
+                    SymbolPaint);
+            }
+            else
+                canvas.DrawLine(MinimizeButton.MidX - minHalfLength,
+                    MinimizeButton.MidY,
+                    MinimizeButton.MidX + minHalfLength,
+                    MinimizeButton.MidY,
+                    SymbolPaint);
+        }
+
+        private void InitializeResizeTriangle()
+        {
+            var triangleSize = 10.5f * ScaleFactor;
+            var bottomRight = new SKPoint(Rectangle.Right, Rectangle.Bottom);
+            var topOfTriangle = new SKPoint(bottomRight.X, bottomRight.Y - triangleSize);
+            var leftOfTriangle = new SKPoint(bottomRight.X - triangleSize, bottomRight.Y);
+
+            var path = new SKPath();
+            path.MoveTo(bottomRight);
+            path.LineTo(topOfTriangle);
+            path.LineTo(leftOfTriangle);
+            path.Close();
+            var old = Interlocked.Exchange(ref _resizeTriangle, path);
+            old?.Dispose();
+        }
+
+        private void DrawResizeCorner(SKCanvas canvas)
+        {
+            var path = ResizeTriangle;
+            if (path is not null)
+                canvas.DrawPath(path, TitleBarPaint);
+        }
+        #endregion
+
+        #region Paints
+        private static readonly SKPaint WidgetBackgroundPaint = new SKPaint()
+        {
+            Color = SKColor.Parse("#222222"),
             StrokeWidth = 1,
+            Style = SKPaintStyle.Fill,
+        };
+
+        private static readonly SKPaint TitleBarPaint = new SKPaint()
+        {
+            Color = SKColor.Parse("#333333"),
+            StrokeWidth = 0.5f,
+            Style = SKPaintStyle.Fill,
+        };
+
+        private static readonly SKPaint ButtonBackgroundPaint = new SKPaint()
+        {
+            Color = SKColor.Parse("#444444"),
+            StrokeWidth = 0.1f,
+            Style = SKPaintStyle.Fill,
+        };
+
+        private static readonly SKPaint SymbolPaint = new SKPaint()
+        {
+            Color = SKColors.LightGray,
+            StrokeWidth = 2f,
             Style = SKPaintStyle.Stroke,
             IsAntialias = true
         };
 
-        internal static SKPaint PaintESPWidgetLocalPlayer { get; } = new()
-        {
-            Color = SKColors.Green,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetUSEC { get; } = new()
-        {
-            Color = SKColors.Red,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetBEAR { get; } = new()
-        {
-            Color = SKColors.Blue,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetAimbotLocked { get; } = new()
-        {
-            Color = SKColors.Blue,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetSpecial { get; } = new()
-        {
-            Color = SKColors.HotPink,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetStreamer { get; } = new()
-        {
-            Color = SKColors.MediumPurple,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetTeammate { get; } = new()
-        {
-            Color = SKColors.LimeGreen,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetBoss { get; } = new()
-        {
-            Color = SKColors.Fuchsia,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetScav { get; } = new()
-        {
-            Color = SKColors.Yellow,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetRaider { get; } = new()
-        {
-            Color = SKColor.Parse("ffc70f"),
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetPScav { get; } = new()
-        {
-            Color = SKColors.White,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetFocused { get; } = new()
-        {
-            Color = SKColors.Coral,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
-        };
-
-        internal static SKPaint PaintESPWidgetLoot { get; } = new()
-        {
-            Color = SKColors.WhiteSmoke,
-            StrokeWidth = 0.75f,
-            Style = SKPaintStyle.Fill,
-            IsAntialias = true,
-            FilterQuality = SKFilterQuality.High
-        };
-
-        internal static SKPaint TextESPWidgetLoot { get; } = new()
+        private static readonly SKPaint TitleBarText = new SKPaint()
         {
             SubpixelText = true,
-            Color = SKColors.WhiteSmoke,
+            Color = SKColors.White,
             IsStroke = false,
-            TextSize = 9f,
-            TextAlign = SKTextAlign.Center,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Left,
             TextEncoding = SKTextEncoding.Utf8,
             IsAntialias = true,
-            Typeface = CustomFonts.SKFontFamilyRegular,
             FilterQuality = SKFilterQuality.High
         };
 
+        private static readonly SKPaint RightTitleInfoText = new SKPaint()
+        {
+            SubpixelText = true,
+            Color = SKColors.White,
+            IsStroke = false,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Left,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.High
+        };
         #endregion
+
+        #region IDisposable
+        private bool _disposed = false;
+        public virtual void Dispose()
+        {
+            var disposed = Interlocked.Exchange(ref _disposed, true);
+            if (!disposed)
+            {
+                lock (_widgetsLock)
+                {
+                    if (_widgetsByParent.TryGetValue(_parent, out var widgets))
+                    {
+                        widgets.Remove(this);
+                        if (widgets.Count == 0)
+                            _widgetsByParent.Remove(_parent);
+                    }
+                }
+
+                ResizeTriangle?.Dispose();
+
+                if (_capturedWidget == this)
+                {
+                    _capturedWidget = null;
+                }
+            }
+        }
+        #endregion
+    }
+
+    public enum WidgetClickEvent
+    {
+        None,
+        Clicked,
+        ClickedTitleBar,
+        ClickedMinimize,
+        ClickedClientArea,
+        ClickedResize
     }
 }

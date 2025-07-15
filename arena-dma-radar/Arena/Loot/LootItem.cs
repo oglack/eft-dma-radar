@@ -42,8 +42,10 @@ namespace arena_dma_radar.Arena.Loot
                 FleaPrice = -1,
                 TraderPrice = -1,
                 BsgId = id,
-                Tags = (name == "Bomb" ? ["Backpack"] : [])
-            };    
+                Tags = name == "Bomb" ? ["Backpack"] :
+                       name == "M18" ? ["Throwable weapon"] :
+                       []
+            };
         }
 
         /// <summary>
@@ -548,6 +550,20 @@ namespace arena_dma_radar.Arena.Loot
                 return new(SKPaints.PaintBackpacksESP, SKPaints.TextBackpacksESP);
 
             return new(SKPaints.PaintDefaultLootESP, SKPaints.TextDefaultLootESP);
+        }
+
+        public SKPaint GetMiniRadarPaint()
+        {
+            if (Config.ShowThrowables && IsThrowableWeapon)
+                return SKPaints.PaintMiniThrowableLoot;
+            if (Config.ShowWeapons && IsWeapon)
+                return SKPaints.PaintMiniWeaponLoot;
+            if (Config.ShowMeds && IsMeds)
+                return SKPaints.PaintMiniMeds;
+            if (Config.ShowBackpacks && IsBackpack)
+                return SKPaints.PaintMiniBackpacks;
+
+            return SKPaints.PaintMiniLoot;
         }
     }
 

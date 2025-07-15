@@ -373,7 +373,7 @@ namespace SDK
         {
             public const uint Nickname = 0x20; // String
             public const uint Settings = 0x60; // -.\uE9B8
-            public const uint Side = 0xA8; // System.Int32
+            public const uint Side = 0xA8; // [HUMAN] Int32
             public const uint RegistrationDate = 0xAC; // Int32
             public const uint MemberCategory = 0xB8; // System.Int32
             public const uint Experience = 0xBC; // Int32

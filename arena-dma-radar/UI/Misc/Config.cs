@@ -120,7 +120,7 @@ namespace arena_dma_radar.UI.Misc
         /// Enables ESP Widget window in Main Window.
         /// </summary>
         [JsonPropertyName("aimviewEnabled")]
-        public bool ESPWidgetEnabled { get; set; } = true;
+        public bool AimviewWidgetEnabled { get; set; } = true;
 
         /// <summary>
         /// Connects grouped players together via a semi-transparent line.
@@ -479,6 +479,9 @@ namespace arena_dma_radar.UI.Misc
 
                 if (config.ESP.Crosshair == null)
                     config.ESP.Crosshair = new ESPCrosshairOptions();
+
+                if (config.ESP.MiniRadar == null)
+                    config.ESP.MiniRadar = new ESPMiniRadarOptions();
 
                 if (config.ESP.PlayerTypeESPSettings == null)
                     config.ESP.PlayerTypeESPSettings = new PlayerTypeSettingsESPConfig();
@@ -844,6 +847,12 @@ namespace arena_dma_radar.UI.Misc
         public int AimlineLength { get; set; } = 15;
 
         /// <summary>
+        /// Minimum kd required to display kd
+        /// </summary>
+        [JsonPropertyName("minimumKD")]
+        public float MinKD { get; set; } = 1f;
+
+        /// <summary>
         /// Show up/down arrows instead of numerical height
         /// </summary>
         [JsonPropertyName("heightIndicator")]
@@ -855,11 +864,20 @@ namespace arena_dma_radar.UI.Misc
         [JsonPropertyName("importantIndicator")]
         public bool ImportantIndicator { get; set; } = true;
 
+        /// <summary>
+        /// Aimline extends to show player looking in your direction
+        /// </summary>
+        [JsonPropertyName("highAlert")]
+        public bool HighAlert { get; set; } = true;
+
         [JsonIgnore]
         public bool ShowBomb => Information.Contains("Bomb");
 
         [JsonIgnore]
         public bool ShowName => Information.Contains("Name");
+
+        [JsonIgnore]
+        public bool ShowKD => Information.Contains("KD");
 
         [JsonIgnore]
         public bool ShowDistance => Information.Contains("Distance");
@@ -983,6 +1001,12 @@ namespace arena_dma_radar.UI.Misc
         public int RenderDistance { get; set; } = 1500;
 
         /// <summary>
+        /// Minimum kd required to display kd
+        /// </summary>
+        [JsonPropertyName("minimumKD")]
+        public float MinKD { get; set; } = 1f;
+
+        /// <summary>
         /// Show Bomb indicator on players w/ bomb in blastgang
         /// </summary>
         [JsonIgnore]
@@ -993,6 +1017,12 @@ namespace arena_dma_radar.UI.Misc
         /// </summary>
         [JsonIgnore]
         public bool ShowName => Information.Contains("Name");
+
+        /// <summary>
+        /// Display kd in ESP
+        /// </summary>
+        [JsonIgnore]
+        public bool ShowKD => Information.Contains("KD");
 
         /// <summary>
         /// Display distance in ESP
@@ -1235,6 +1265,12 @@ namespace arena_dma_radar.UI.Misc
         public bool ShowFPS { get; set; } = true;
 
         /// <summary>
+        /// FPS offset position
+        /// </summary>
+        [JsonPropertyName("fpsOffset")]
+        public PointFSer FPSOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
         /// Display Aimline out of the barrel fireport.
         /// </summary>
         [JsonPropertyName("showFireportAim")]
@@ -1259,16 +1295,57 @@ namespace arena_dma_radar.UI.Misc
         public bool ShowMagazine { get; set; } = true;
 
         /// <summary>
+        /// Magazine counter offset position
+        /// </summary>
+        [JsonPropertyName("magazineOffset")]
+        public PointFSer MagazineOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
+        /// Show closest player in ESP.
+        /// </summary>
+        [JsonPropertyName("showClosestPlayer")]
+        public bool ShowClosestPlayer { get; set; } = true;
+
+        /// <summary>
+        /// Closest player offset position
+        /// </summary>
+        [JsonPropertyName("closestPlayerOffset")]
+        public PointFSer ClosestPlayerOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
         /// Display Raid Stats (Player Type/Count,etc.) in top right corner.
         /// </summary>
         [JsonPropertyName("showRaidStats")]
         public bool ShowRaidStats { get; set; } = true;
 
         /// <summary>
+        /// Raid stats offset position
+        /// </summary>
+        [JsonPropertyName("raidStatsOffset")]
+        public PointFSer RaidStatsOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
         /// Display Status (aimbot enabled, bone, wide lean, etc.) in top center of ESP Screen.
         /// </summary>
         [JsonPropertyName("showStatusText")]
         public bool ShowStatusText { get; set; } = true;
+
+        /// <summary>
+        /// Status text offset position
+        /// </summary>
+        [JsonPropertyName("statusTextOffset")]
+        public PointFSer StatusTextOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
+        /// Mini radar configuration options
+        /// </summary>
+        public ESPMiniRadarOptions MiniRadar { get; set; } = new ESPMiniRadarOptions();
+
+        /// <summary>
+        /// Mini radar position and size
+        /// </summary>
+        [JsonPropertyName("radarRect")]
+        public RectFSer RadarRect { get; set; } = new RectFSer(20, 20, 220, 220);
 
         /// <summary>
         /// ESP Font Size/Scale.
@@ -1294,6 +1371,12 @@ namespace arena_dma_radar.UI.Misc
         /// </summary>
         [JsonPropertyName("autoFS")]
         public bool AutoFullscreen { get; set; } = false;
+
+        /// <summary>
+        /// Thew zoom level of the mini radar.
+        /// </summary>
+        [JsonPropertyName("radarZoom")]
+        public float RadarZoom { get; set; } = 4.0f;
 
         /// <summary>
         /// Selected screen for Auto Startup.
@@ -1325,6 +1408,27 @@ namespace arena_dma_radar.UI.Misc
         [JsonInclude]
         [JsonPropertyName("entityTypeESPSettings")]
         public EntityTypeSettingsESPConfig EntityTypeESPSettings { get; set; } = new EntityTypeSettingsESPConfig();
+    }
+
+    public sealed class ESPMiniRadarOptions
+    {
+        /// <summary>
+        /// Show Mini Radar in ESP.
+        /// </summary>
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// Show loot on mini radar
+        /// </summary>
+        [JsonPropertyName("showLoot")]
+        public bool ShowLoot { get; set; } = true;
+
+        /// <summary>
+        /// Mini radar entity scale
+        /// </summary>
+        [JsonPropertyName("scale")]
+        public float Scale { get; set; } = 1;
     }
 
     public sealed class ESPCrosshairOptions

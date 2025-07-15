@@ -41,6 +41,7 @@ using Clipboard = System.Windows.Clipboard;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using InputManager = eft_dma_shared.Common.Misc.InputManager;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
@@ -69,6 +70,7 @@ namespace arena_dma_radar.UI.Pages
         private readonly Dictionary<string, bool> _toggleStates = new();
         private readonly Dictionary<string, DateTime> _lastExecutionTime = new();
         private const int HOTKEY_COOLDOWN_MS = 50; // Prevent spam
+        private bool _keyInputBoxIsCapturing = false;
 
         private const int INTERVAL = 100; // 0.1 second
         private const int HK_ZoomAmt = 2; // amt to zoom
@@ -98,13 +100,14 @@ namespace arena_dma_radar.UI.Pages
             "Height",
             "Level",
             "Name",
+            "KD",
             "Tag",
             "Weapon"
         };
 
         private readonly string[] _availableWidgets = new string[]
         {
-            "ESP Widget",
+            "Aimview Widget",
             "Debug Widget",
             "Player Info Widget"
         };
@@ -151,6 +154,7 @@ namespace arena_dma_radar.UI.Pages
                     expMonitorSettings,
                     expPlayerColors,
                     expOtherColors,
+                    expHUDColors,
                     expInterfaceColors,
                     expApplicationHotkeys);
 
@@ -240,8 +244,8 @@ namespace arena_dma_radar.UI.Pages
                 var jsonData = JsonSerializer.Serialize(configForExport, options);
                 Clipboard.SetText(jsonData);
 
-                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache and WebRadar settings excluded)");
-                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache and WebRadar)");
+                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache & Web Radar settings excluded)");
+                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache & WebRadar)");
             }
             catch (Exception ex)
             {
@@ -261,18 +265,18 @@ namespace arena_dma_radar.UI.Pages
                 }
 
                 var clipboardText = Clipboard.GetText();
+
                 var warningResult = MessageBox.Show(
-                        "WARNING: Importing a configuration will replace most current settings including:\n\n" +
-                        "• Compatible general settings & UI preferences\n" +
+                        "WARNING: Importing a configuration will replace current settings including:\n\n" +
+                        "• General settings & UI preferences\n" +
                         "• Player/Entity display settings\n" +
-                        "• Color configurations (compatible colors only)\n" +
+                        "• Color configurations\n" +
                         "• Hotkey assignments\n" +
                         "• ESP configurations\n" +
                         "• Panel and toolbar positions\n" +
                         "• Memory writing settings\n" +
-                        "• And other compatible settings\n\n" +
-                        "NOTE: Incompatible settings will be ignored.\n" +
-                        "Cache settings will be preserved.\n\n" +
+                        "• Death marker settings\n\n" +
+                        "NOTE: Cache & Web Radar data will not be preserved.\n\n" +
                         "This action cannot be undone. Continue?",
                         "Import Configuration Warning",
                         MessageBoxButton.YesNo,
@@ -299,8 +303,7 @@ namespace arena_dma_radar.UI.Pages
                                 IgnoreReadOnlyProperties = true,
                                 ReadCommentHandling = JsonCommentHandling.Skip,
                                 AllowTrailingCommas = true,
-                                PropertyNameCaseInsensitive = true,
-                                Converters = { new SafeEnumConverter() }
+                                PropertyNameCaseInsensitive = true
                             };
 
                             importedConfig = JsonSerializer.Deserialize<Config>(clipboardText, options);
@@ -310,7 +313,7 @@ namespace arena_dma_radar.UI.Pages
                                 throw new InvalidOperationException("Deserialized config is null");
                             }
 
-                            LoneLogging.WriteLine("[Config] Configuration deserialized successfully with ignored incompatible properties");
+                            LoneLogging.WriteLine("[Config] Configuration deserialized successfully");
                         }
                         catch (Exception ex)
                         {
@@ -336,6 +339,7 @@ namespace arena_dma_radar.UI.Pages
                             var currentCache = Config.Cache;
 
                             Config.EnsureComplexObjectsInitialized(importedConfig);
+
                             importedConfig.Cache = currentCache;
 
                             if (importedConfig.MemWrites.MemWritesEnabled)
@@ -419,16 +423,16 @@ namespace arena_dma_radar.UI.Pages
 
                             Config.Save();
 
-                            LoneLogging.WriteLine("[Config] Configuration imported successfully - compatible settings applied, incompatible ones ignored");
+                            LoneLogging.WriteLine("[Config] Configuration imported successfully");
                         }
                         catch (Exception ex)
                         {
-                            LoneLogging.WriteLine($"[Config] Import error during application: {ex}");
+                            LoneLogging.WriteLine($"[Config] Import error during config application: {ex}");
                             throw;
                         }
                     });
 
-                    NotificationsShared.Success("Configuration imported successfully! Compatible settings applied, incompatible settings ignored.");
+                    NotificationsShared.Success("Configuration imported successfully!");
                 }
                 catch (Exception ex)
                 {
@@ -584,9 +588,12 @@ namespace arena_dma_radar.UI.Pages
             chkHeightIndicator.Unchecked += GeneralCheckbox_Checked;
             chkImportantIndicator.Checked += GeneralCheckbox_Checked;
             chkImportantIndicator.Unchecked += GeneralCheckbox_Checked;
+            chkHighAlert.Checked += GeneralCheckbox_Checked;
+            chkHighAlert.Unchecked += GeneralCheckbox_Checked;
             sldrPlayerTypeRenderDistance.ValueChanged += GeneralSlider_ValueChanged;
             sldrPlayerTypeAimlineLength.ValueChanged += GeneralSlider_ValueChanged;
             ccbInformation.SelectionChanged += playerInfoCheckComboBox_SelectionChanged;
+            sldrMinimumKD.ValueChanged += GeneralSlider_ValueChanged;
 
             // Entity Information
             cboEntityType.SelectionChanged += cboEntityType_SelectionChanged;
@@ -772,7 +779,7 @@ namespace arena_dma_radar.UI.Pages
         {
             var optionsToUpdate = new Dictionary<string, bool>
             {
-                ["ESP Widget"] = Config.ESPWidgetEnabled,
+                ["Aimview Widget"] = Config.AimviewWidgetEnabled,
                 ["Debug Widget"] = Config.ShowDebugWidget,
                 ["Player Info Widget"] = Config.ShowInfoTab
             };
@@ -867,8 +874,10 @@ namespace arena_dma_radar.UI.Pages
 
                 chkHeightIndicator.IsChecked = settings.HeightIndicator;
                 chkImportantIndicator.IsChecked = settings.ImportantIndicator;
+                chkHighAlert.IsChecked = settings.HighAlert;
                 sldrPlayerTypeRenderDistance.Value = settings.RenderDistance;
                 sldrPlayerTypeAimlineLength.Value = settings.AimlineLength;
+                sldrMinimumKD.Value = settings.MinKD;
 
                 ccbInformation.SelectedItems.Clear();
 
@@ -886,6 +895,30 @@ namespace arena_dma_radar.UI.Pages
             {
                 _isLoadingPlayerSettings = false;
             }
+
+            UpdatePlayerInformationControlsVisibility();
+        }
+
+        private void UpdatePlayerInformationControlsVisibility()
+        {
+            if (_isLoadingPlayerSettings)
+                return;
+
+            kdSettings.Visibility = Visibility.Collapsed;
+
+            var showKD = false;
+            foreach (CheckComboBoxItem item in ccbInformation.SelectedItems)
+            {
+                var info = item.Content.ToString();
+                if (info == "KD")
+                {
+                    showKD = true;
+                    break;
+                }
+            }
+
+            if (showKD)
+                kdSettings.Visibility = Visibility.Visible;
         }
 
         private void SavePlayerTypeSettings(string playerType)
@@ -896,8 +929,10 @@ namespace arena_dma_radar.UI.Pages
             var settings = Config.PlayerTypeSettings.GetSettings(playerType);
             settings.HeightIndicator = chkHeightIndicator.IsChecked == true;
             settings.ImportantIndicator = chkImportantIndicator.IsChecked == true;
+            settings.HighAlert = chkHighAlert.IsChecked == true;
             settings.RenderDistance = (int)sldrPlayerTypeRenderDistance.Value;
             settings.AimlineLength = (int)sldrPlayerTypeAimlineLength.Value;
+            settings.MinKD = (float)sldrMinimumKD.Value;
             settings.Information.Clear();
 
             foreach (CheckComboBoxItem item in ccbInformation.SelectedItems)
@@ -1001,7 +1036,7 @@ namespace arena_dma_radar.UI.Pages
 
             #region UpdatePaints
 
-            /// Outlines
+            // Outlines
             SKPaints.TextOutline.TextSize = 12f * newScale;
             SKPaints.TextOutline.StrokeWidth = 2f * newScale;
             // Shape Outline is computed before usage due to different stroke widths
@@ -1023,8 +1058,6 @@ namespace arena_dma_radar.UI.Pages
             SKPaints.TextStreamer.TextSize = 12 * newScale;
             SKPaints.PaintAimbotLocked.StrokeWidth = 3 * newScale;
             SKPaints.TextAimbotLocked.TextSize = 12 * newScale;
-            SKPaints.PaintAimbotLocked.StrokeWidth = 3 * newScale;
-            SKPaints.TextAimbotLocked.TextSize = 12 * newScale;
             SKPaints.PaintAI.StrokeWidth = 3 * newScale;
             SKPaints.TextAI.TextSize = 12 * newScale;
             SKPaints.PaintFocused.StrokeWidth = 3 * newScale;
@@ -1044,7 +1077,7 @@ namespace arena_dma_radar.UI.Pages
             SKPaints.TextThrowableLoot.TextSize = 12 * newScale;
             SKPaints.TextWeaponLoot.TextSize = 12 * newScale;
             SKPaints.TextMeds.TextSize = 12 * newScale;
-            SKPaints.PaintBackpacks.TextSize = 12 * newScale;
+            SKPaints.TextBackpacks.TextSize = 12 * newScale;
             SKPaints.PaintTransparentBacker.StrokeWidth = 1 * newScale;
             SKPaints.TextRadarStatus.TextSize = 48 * newScale;
             SKPaints.TextStatusSmall.TextSize = 13 * newScale;
@@ -1190,23 +1223,9 @@ namespace arena_dma_radar.UI.Pages
                     case "ShowMapSetup":
                         ToggleMapSetup();
                         break;
-                    case "ESPWidget":
-                        Config.ESPWidgetEnabled = value;
-                        break;
-                    case "PlayerInfoWidget":
-                        Config.ShowInfoTab = value;
-                        break;
-                    case "ConnectGroups":
-                        Config.ConnectGroups = value;
-                        break;
-                    case "MaskNames":
-                        Config.MaskNames = value;
-                        break;
-                    case "DebugWidget":
-                        Config.ShowDebugWidget = value;
-                        break;
                     case "PlayerHeightIndicator":
                     case "ImportantIndicator":
+                    case "HighAlert":
                         SavePlayerTypeSettings();
                         break;
                     case "ShowExplosiveRadius":
@@ -1310,6 +1329,7 @@ namespace arena_dma_radar.UI.Pages
                         break;
                     case "PlayerTypeRenderDistance":
                     case "PlayerTypeAimlineLength":
+                    case "MinimumKD":
                         SavePlayerTypeSettings(); break;
                     case "EntityTypeRenderDistance":
                         SaveEntityTypeSettings(); break;
@@ -1355,8 +1375,8 @@ namespace arena_dma_radar.UI.Pages
 
                 switch (widgetOption)
                 {
-                    case "ESP Widget":
-                        Config.ESPWidgetEnabled = isSelected;
+                    case "Aimview Widget":
+                        Config.AimviewWidgetEnabled = isSelected;
                         break;
                     case "Debug Widget":
                         Config.ShowDebugWidget = isSelected;
@@ -1413,6 +1433,7 @@ namespace arena_dma_radar.UI.Pages
         private void playerInfoCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             SavePlayerTypeSettings();
+            UpdatePlayerInformationControlsVisibility();
         }
 
         private void cboEntityType_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1474,6 +1495,18 @@ namespace arena_dma_radar.UI.Pages
             btnDeathMarkerColor.Click += ColorButton_Clicked;
             btnExplosivesColor.Click += ColorButton_Clicked;
             btnGroupLinesColor.Click += ColorButton_Clicked;
+
+            // Fuser HUD Colors
+            btnFPSColor.Click += ColorButton_Clicked;
+            btnRaidStatsColor.Click += ColorButton_Clicked;
+            btnStatusTextColor.Click += ColorButton_Clicked;
+            btnMagazineInfoColor.Click += ColorButton_Clicked;
+            btnCrosshairColor.Click += ColorButton_Clicked;
+            btnFireportAimColor.Click += ColorButton_Clicked;
+            btnAimbotFOVColor.Click += ColorButton_Clicked;
+            btnAimbotLockColor.Click += ColorButton_Clicked;
+            btnClosestPlayerColor.Click += ColorButton_Clicked;
+            btnMiniRadarThemeColor.Click += ColorButton_Clicked;
 
             // Interface
             btnAccentColor.Click += ColorButton_Clicked;
@@ -1590,6 +1623,18 @@ namespace arena_dma_radar.UI.Pages
             _brushFields["DeathMarker"] = deathMarkerBrush;
             _brushFields["Explosives"] = explosivesBrush;
             _brushFields["GroupLines"] = groupLinesBrush;
+
+            // Fuser HUD colors
+            _brushFields["FPS"] = FPSBrush;
+            _brushFields["RaidStats"] = raidStatsBrush;
+            _brushFields["StatusText"] = statusTextBrush;
+            _brushFields["MagazineInfo"] = magazineInfoBrush;
+            _brushFields["Crosshair"] = crosshairBrush;
+            _brushFields["FireportAim"] = fireportAimBrush;
+            _brushFields["AimbotFOV"] = aimbotFOVBrush;
+            _brushFields["AimbotLock"] = aimbotLockBrush;
+            _brushFields["ClosestPlayer"] = closestPlayerBrush;
+            _brushFields["MiniRadarTheme"] = miniRadarThemeBrush;
 
             // Interface colors
             _brushFields["Interface.Accent"] = accentColor;
@@ -1787,6 +1832,9 @@ namespace arena_dma_radar.UI.Pages
         {
             btnAddHotkey.Click += btnAddHotkey_Click;
             btnRemoveHotkey.Click += btnRemoveHotkey_Click;
+
+            cboAction.PreviewKeyDown += cboAction_PreviewKeyDown;
+            keyInputBox.CapturingStateChanged += KeyInputBox_CapturingStateChanged;
         }
 
         private void RegisterHotkeyHandlers()
@@ -2043,6 +2091,8 @@ namespace arena_dma_radar.UI.Pages
             {
                 nameof(HotkeyConfig.ZoomIn) => true,
                 nameof(HotkeyConfig.ZoomOut) => true,
+                nameof(HotkeyConfig.MiniRadarZoomIn) => true,
+                nameof(HotkeyConfig.MiniRadarZoomOut) => true,
                 _ => false
             };
         }
@@ -2095,6 +2145,12 @@ namespace arena_dma_radar.UI.Pages
                 #region Fuser ESP
                 case nameof(HotkeyConfig.ToggleFuserESP):
                     ESPForm.ShowESP = isActive;
+                    break;
+                case nameof(HotkeyConfig.MiniRadarZoomIn):
+                    ExecuteContinuousAction(actionKey, () => ESPForm.Window?.ZoomIn(HK_ZoomAmt));
+                    break;
+                case nameof(HotkeyConfig.MiniRadarZoomOut):
+                    ExecuteContinuousAction(actionKey, () => ESPForm.Window?.ZoomOut(HK_ZoomAmt));
                     break;
                 #endregion
 
@@ -2224,9 +2280,9 @@ namespace arena_dma_radar.UI.Pages
                 #endregion
 
                 #region General Settings
-                case nameof(HotkeyConfig.ESPWidget):
-                    Config.ESPWidgetEnabled = isActive;
-                    UpdateSpecificWidgetOption("ESP Widget", isActive);
+                case nameof(HotkeyConfig.AimviewWidget):
+                    Config.AimviewWidgetEnabled = isActive;
+                    UpdateSpecificWidgetOption("Aimview Widget", isActive);
                     break;
                 case nameof(HotkeyConfig.DebugWidget):
                     Config.ShowDebugWidget = isActive;
@@ -2378,6 +2434,17 @@ namespace arena_dma_radar.UI.Pages
                 RegisterHotkeyHandlers();
                 RefreshHotkeyDisplay();
             }
+        }
+
+        private void KeyInputBox_CapturingStateChanged(object sender, bool isCapturing)
+        {
+            _keyInputBoxIsCapturing = isCapturing;
+        }
+
+        private void cboAction_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_keyInputBoxIsCapturing)
+                e.Handled = true;
         }
         #endregion
         #endregion

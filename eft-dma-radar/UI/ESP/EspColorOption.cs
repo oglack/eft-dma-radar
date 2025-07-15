@@ -1,4 +1,5 @@
 ﻿using eft_dma_radar.UI.Misc;
+using SkiaSharp.Views.WPF;
 
 namespace eft_dma_radar.UI
 {
@@ -23,6 +24,7 @@ namespace eft_dma_radar.UI
         FoodFilterLoot,
         BackpackFilterLoot,
         QuestLoot,
+        Airdrop,
         StaticQuestItemsAndZones,
         Corpse,
         Explosives,
@@ -34,7 +36,20 @@ namespace eft_dma_radar.UI
         Switches,
         DoorOpen,
         DoorLocked,
-        DoorShut
+        DoorShut,
+        FPS,
+        RaidStats,
+        StatusText,
+        MagazineInfo,
+        EnergyBar,
+        HydrationBar,
+        Crosshair,
+        FireportAim,
+        AimbotFOV,
+        AimbotLock,
+        ClosestPlayer,
+        TopLoot,
+        MiniRadarTheme
     }
 
     internal static class EspColorOptions
@@ -74,6 +89,7 @@ namespace eft_dma_radar.UI
                 [EspColorOption.WishlistLoot] = SKColors.Red.ToString(),
                 [EspColorOption.ContainerLoot] = SKColor.Parse("FFFFCC").ToString(),
                 [EspColorOption.QuestLoot] = SKColors.YellowGreen.ToString(),
+                [EspColorOption.Airdrop] = SKColors.Red.ToString(),
                 [EspColorOption.StaticQuestItemsAndZones] = SKColors.DeepPink.ToString(),
                 [EspColorOption.Corpse] = SKColors.Silver.ToString(),
                 [EspColorOption.MedsFilterLoot] = SKColors.LightSalmon.ToString(),
@@ -88,7 +104,21 @@ namespace eft_dma_radar.UI
                 [EspColorOption.ExfilPending] = SKColors.Yellow.ToString(),
                 [EspColorOption.ExfilClosed] = SKColors.Red.ToString(),
                 [EspColorOption.ExfilInactive] = SKColors.Gray.ToString(),
-                [EspColorOption.ExfilTransit] = SKColors.Orange.ToString()
+                [EspColorOption.ExfilTransit] = SKColors.Orange.ToString(),
+
+                [EspColorOption.FPS] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.RaidStats] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.StatusText] = SKColors.Red.ToString(),
+                [EspColorOption.MagazineInfo] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.EnergyBar] = SKColor.Parse("D4C48A").ToString(),
+                [EspColorOption.HydrationBar] = SKColor.Parse("5B9BD5").ToString(),
+                [EspColorOption.Crosshair] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.FireportAim] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.AimbotFOV] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.AimbotLock] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.ClosestPlayer] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.TopLoot] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.MiniRadarTheme] = SKColors.WhiteSmoke.ToString()
             };
 
         /// <summary>
@@ -164,6 +194,10 @@ namespace eft_dma_radar.UI
                             SKPaints.PaintQuestItemESP.Color = skColor;
                             SKPaints.TextQuestItemESP.Color = skColor;
                             break;
+                        case EspColorOption.Airdrop:
+                            SKPaints.PaintAirdropESP.Color = skColor;
+                            SKPaints.TextAirdropESP.Color = skColor;
+                            break;
                         case EspColorOption.StaticQuestItemsAndZones:
                             SKPaints.PaintQuestHelperESP.Color = skColor;
                             SKPaints.TextQuestHelperESP.Color = skColor;
@@ -224,6 +258,48 @@ namespace eft_dma_radar.UI
                         case EspColorOption.ExfilTransit:
                             SKPaints.TextExfilTransitESP.Color = skColor;
                             SKPaints.PaintExfilTransitESP.Color = skColor;
+                            break;
+                        case EspColorOption.FPS:
+                            SKPaints.TextESPFPS.Color = skColor;
+                            break;
+                        case EspColorOption.RaidStats:
+                            SKPaints.TextESPRaidStats.Color = skColor;
+                            break;
+                        case EspColorOption.StatusText:
+                            SKPaints.TextESPStatusText.Color = skColor;
+                            break;
+                        case EspColorOption.MagazineInfo:
+                            SKPaints.TextMagazineESP.Color = skColor;
+                            SKPaints.TextMagazineInfoESP.Color = skColor;
+                            break;
+                        case EspColorOption.EnergyBar:
+                            SKPaints.PaintEnergyFillESP.Color = skColor;
+                            break;
+                        case EspColorOption.HydrationBar:
+                            SKPaints.PaintHydrationFillESP.Color = skColor;
+                            break;
+                        case EspColorOption.Crosshair:
+                            SKPaints.PaintCrosshairESP.Color = skColor;
+                            SKPaints.PaintCrosshairESPDot.Color = skColor;
+                            break;
+                        case EspColorOption.FireportAim:
+                            SKPaints.PaintFireportAimESP.Color = skColor;
+                            break;
+                        case EspColorOption.AimbotFOV:
+                            SKPaints.PaintAimbotFOVESP.Color = skColor;
+                            break;
+                        case EspColorOption.AimbotLock:
+                            SKPaints.PaintAimbotLockedLineESP.Color = skColor;
+                            break;
+                        case EspColorOption.ClosestPlayer:
+                            SKPaints.TextESPClosestPlayer.Color = skColor;
+                            break;
+                        case EspColorOption.TopLoot:
+                            SKPaints.TextESPTopLoot.Color = skColor;
+                            break;
+                        case EspColorOption.MiniRadarTheme:
+                            SKPaints.PaintMiniRadarOutlineESP.Color = skColor;
+                            SKPaints.PaintMiniRadarResizeHandleESP.Color = skColor;
                             break;
                     }
                 }

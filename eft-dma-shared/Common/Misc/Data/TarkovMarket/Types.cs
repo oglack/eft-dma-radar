@@ -173,6 +173,9 @@ namespace eft_dma_shared.Common.Misc.Data.TarkovMarket
             [JsonPropertyName("type")]
             public string Type { get; set; }
 
+            [JsonPropertyName("optional")]
+            public bool Optional { get; set; }
+
             [JsonPropertyName("description")]
             public string Description { get; set; }
 

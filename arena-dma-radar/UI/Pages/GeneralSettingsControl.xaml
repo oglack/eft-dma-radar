@@ -173,12 +173,21 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
                                         <CheckBox x:Name="chkHeightIndicator" Content="Height Indicator" Tag="PlayerHeightIndicator"
-                                                  Grid.Column="0" Margin="0,0,5,8"
+                                                  Grid.Row="0" Grid.Column="0" Margin="0,0,5,8"
                                                   Style="{StaticResource DynamicCheckBoxStyle}"/>
 
                                         <CheckBox x:Name="chkImportantIndicator" Content="Important Indicator" Tag="ImportantIndicator" Visibility="Collapsed"
-                                                  Grid.Column="1" Margin="0,0,5,0" HorizontalAlignment="Right"
+                                                  Grid.Row="0" Grid.Column="1" Margin="0,0,5,8" HorizontalAlignment="Right"
+                                                  Style="{StaticResource DynamicCheckBoxStyle}"/>
+
+                                        <CheckBox x:Name="chkHighAlert" Content="High Alert" Tag="HighAlert"
+                                                  Grid.Row="1" Grid.Column="0" Margin="0,0,5,8"
                                                   Style="{StaticResource DynamicCheckBoxStyle}"/>
                                     </Grid>
 
@@ -219,6 +228,25 @@
                                             ContentStringFormat="{}{0:0m}" 
                                             Grid.Column="1"/>
                                     </Grid>
+
+                                    <hc:SimpleStackPanel x:Name="playerSpecificSettings" Margin="0,0,0,0">
+                                        <!-- KD Settings -->
+                                        <Grid x:Name="kdSettings" Visibility="Collapsed" Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Minimum KD" Style="{StaticResource LabelText}" 
+                                                VerticalAlignment="Center" Grid.Column="0"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrMinimumKD" Tag="MinimumKD"
+                                                Minimum="0.1" Maximum="15.0"
+                                                SmallChange="0.1" TickFrequency="0.1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0}" 
+                                                Grid.Column="1"/>
+                                        </Grid>
+                                    </hc:SimpleStackPanel>
 
                                     <!-- Information Selection -->
                                     <hc:CheckComboBox x:Name="ccbInformation" Grid.Column="1" Margin="0,0,0,0"
@@ -577,6 +605,125 @@
                                                 Style="{StaticResource ColorPickerButton}">
                                             <Button.Background>
                                                 <SolidColorBrush x:Name="groupLinesBrush" Color="LimeGreen"/>
+                                            </Button.Background>
+                                        </Button>
+                                    </Grid>
+                                </hc:SimpleStackPanel>
+                            </Expander>
+
+                            <!-- HUD Colors Section -->
+                            <Expander x:Name="expHUDColors" Header="Fuser HUD Colors" Style="{StaticResource PanelExpander}" IsExpanded="True">
+                                <hc:SimpleStackPanel Style="{StaticResource ExpanderContent}" Margin="2,8,2,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- FPS & Raid Stats -->
+                                        <TextBlock Text="FPS" Grid.Row="0" Grid.Column="0" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnFPSColor" Grid.Row="0" Grid.Column="1" Tag="FPS"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="FPSBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <TextBlock Text="Raid Stats" Grid.Row="0" Grid.Column="3" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnRaidStatsColor" Grid.Row="0" Grid.Column="4" Tag="RaidStats"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="raidStatsBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <!-- Status Text & Magazine Info -->
+                                        <TextBlock Text="Status Text" Grid.Row="1" Grid.Column="0" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnStatusTextColor" Grid.Row="1" Grid.Column="1" Tag="StatusText"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="statusTextBrush" Color="Red"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <TextBlock Text="Magazine Info" Grid.Row="1" Grid.Column="3" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnMagazineInfoColor" Grid.Row="1" Grid.Column="4" Tag="MagazineInfo"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="magazineInfoBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <!-- Crosshair & Fireport Aim -->
+                                        <TextBlock Text="Crosshair" Grid.Row="2" Grid.Column="0" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnCrosshairColor" Grid.Row="2" Grid.Column="1" Tag="Crosshair"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="crosshairBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <TextBlock Text="Fireport Aim" Grid.Row="2" Grid.Column="3" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnFireportAimColor" Grid.Row="2" Grid.Column="4" Tag="FireportAim"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="fireportAimBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <!-- Aimbot FOV & Aimbot Lock -->
+                                        <TextBlock Text="Aimbot FOV" Grid.Row="3" Grid.Column="0" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnAimbotFOVColor" Grid.Row="3" Grid.Column="1" Tag="AimbotFOV"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="aimbotFOVBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <TextBlock Text="Aimbot Lock" Grid.Row="3" Grid.Column="3" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnAimbotLockColor" Grid.Row="3" Grid.Column="4" Tag="AimbotLock"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="aimbotLockBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <!-- Closest Player & Mini Radar Theme -->
+                                        <TextBlock Text="Closest Player" Grid.Row="4" Grid.Column="0" 
+                                                   Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnClosestPlayerColor" Grid.Row="4" Grid.Column="1" Tag="ClosestPlayer"
+                                                Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="closestPlayerBrush" Color="WhiteSmoke"/>
+                                            </Button.Background>
+                                        </Button>
+
+                                        <TextBlock Text="Radar Theme" Grid.Row="4" Grid.Column="3" 
+                                            Style="{StaticResource ColorPickerLabel}"/>
+                                        <Button x:Name="btnMiniRadarThemeColor" Grid.Row="4" Grid.Column="4" Tag="MiniRadarTheme"
+                                         Style="{StaticResource ColorPickerButton}">
+                                            <Button.Background>
+                                                <SolidColorBrush x:Name="miniRadarThemeBrush" Color="WhiteSmoke"/>
                                             </Button.Background>
                                         </Button>
                                     </Grid>

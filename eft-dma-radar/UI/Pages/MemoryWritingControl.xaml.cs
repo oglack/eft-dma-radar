@@ -203,8 +203,8 @@ namespace eft_dma_radar.UI.Pages
             chkRageMode.Checked += MemWritingCheckbox_Checked;
             chkRageMode.Unchecked += MemWritingCheckbox_Checked;
             btnAntiAFK.Click += btnAntiAFK_Click;
-            btnUnlockMaps.Click += btnUnlockMaps_Click;
             btnGymHack.Click += btnGymHack_Click;
+            btnUnlockMaps.Click += btnUnlockMaps_Click;
 
             // Aimbot Settings
             chkEnableAimbot.Checked += MemWritingCheckbox_Checked;
@@ -256,10 +256,10 @@ namespace eft_dma_radar.UI.Pages
             sldrLeanAmt.ValueChanged += MemWritingSlider_ValueChanged;
             chkLongJump.Checked += MemWritingCheckbox_Checked;
             chkLongJump.Unchecked += MemWritingCheckbox_Checked;
+            btnLongJumpConfig.Click += MemWritingButton_Clicked;
+            sldrLongJumpMultiplier.ValueChanged += MemWritingSlider_ValueChanged;
             chkNoFall.Checked += MemWritingCheckbox_Checked;
             chkNoFall.Unchecked += MemWritingCheckbox_Checked;
-            btnLongJumpConfig.Click += MemWritingButton_Clicked;
-            sldrLongJumpMultiplier.ValueChanged += MemWritingSlider_ValueChanged;           
 
             // World
             chkTimeOfDay.Checked += MemWritingCheckbox_Checked;
@@ -478,7 +478,6 @@ namespace eft_dma_radar.UI.Pages
             chkRageMode.IsEnabled = memWritingEnabled;
             btnAntiAFK.IsEnabled = memWritingEnabled;
             btnGymHack.IsEnabled = memWritingEnabled;
-            btnUnlockMaps.IsEnabled = memWritingEnabled;
 
             // Aimbot Settings
             ToggleAimbotControls();

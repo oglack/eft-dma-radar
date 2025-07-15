@@ -109,7 +109,25 @@ namespace eft_dma_shared.Common.Maps
                 YScale = canvasSize.Height / bounds.Height // Set scale for this frame
             };
         }
+        public LoneMapParams GetParametersE(SKSize control, float zoom, ref Vector2 localPlayerMapPos)
+        {
+            var zoomWidth = _layers[0].Image.Width * (.01f * zoom);
+            var zoomHeight = _layers[0].Image.Height * (.01f * zoom);
 
+            var bounds = new SKRect(localPlayerMapPos.X - zoomWidth / 2,
+                    localPlayerMapPos.Y - zoomHeight / 2,
+                    localPlayerMapPos.X + zoomWidth / 2,
+                    localPlayerMapPos.Y + zoomHeight / 2)
+                .AspectFill(control);
+
+            return new LoneMapParams
+            {
+                Map = Config,
+                Bounds = bounds,
+                XScale = control.Width / bounds.Width, // Set scale for this frame
+                YScale = control.Height / bounds.Height // Set scale for this frame
+            };
+        }
         public void Dispose()
         {
             for (int i = 0; i < _layers.Length; i++)

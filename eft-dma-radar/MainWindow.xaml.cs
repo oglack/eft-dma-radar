@@ -107,8 +107,8 @@ namespace eft_dma_radar
         private readonly Stopwatch _statusSw = Stopwatch.StartNew();
         private int _statusOrder = 1;
 
-        private EspWidget _aimview;
-        public EspWidget AimView { get => _aimview; private set => _aimview = value; }
+        private AimviewWidget _aimview;
+        public AimviewWidget AimView { get => _aimview; private set => _aimview = value; }
 
         private PlayerInfoWidget _playerInfo;
         public PlayerInfoWidget PlayerInfo { get => _playerInfo; private set => _playerInfo = value; }
@@ -118,6 +118,9 @@ namespace eft_dma_radar
 
         private LootInfoWidget _lootInfo;
         public LootInfoWidget LootInfo { get => _lootInfo; private set => _lootInfo = value; }
+
+        private QuestInfoWidget _questInfo;
+        public QuestInfoWidget QuestInfo { get => _questInfo; private set => _questInfo = value; }
 
         /// <summary>
         /// Determines if MainWindow is ready or not
@@ -405,6 +408,42 @@ namespace eft_dma_radar
 
                     var battleMode = Config.BattleMode;
 
+                    if (!Config.PlayersOnTop && Config.ConnectGroups)
+                    {
+                        var groupedPlayers = allPlayers?.Where(x => x.IsHumanHostileActive && x.GroupID != -1);
+                        if (groupedPlayers is not null)
+                        {
+                            var groups = groupedPlayers.Select(x => x.GroupID).ToHashSet();
+                            foreach (var grp in groups)
+                            {
+                                var grpMembers = groupedPlayers.Where(x => x.GroupID == grp).ToList();
+                                if (grpMembers.Count > 1)
+                                {
+                                    var positions = grpMembers
+                                        .Select(x => x.Position.ToMapPos(map.Config).ToZoomedPos(mapParams))
+                                        .ToArray();
+
+                                    for (int i = 0; i < positions.Length - 1; i++)
+                                    {
+                                        canvas.DrawLine(
+                                            positions[i].X, positions[i].Y,
+                                            positions[i + 1].X, positions[i + 1].Y,
+                                            SKPaints.PaintConnectorGroup);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!Config.PlayersOnTop)
+                        if (allPlayers is not null)
+                            foreach (var player in allPlayers)
+                            {
+                                if (player == localPlayer)
+                                    continue;
+                                player.Draw(canvas, mapParams, localPlayer);
+                            }
+
                     if (!battleMode && Config.Containers.Show && StaticLootContainer.Settings.Enabled)
                     {
                         var containers = Containers;
@@ -513,15 +552,27 @@ namespace eft_dma_radar
                         }
                     }
 
-                    if (allPlayers is not null)
-                        foreach (var player in allPlayers)
-                        {
-                            if (player == localPlayer)
-                                continue;
-                            player.Draw(canvas, mapParams, localPlayer);
-                        }
+                    if (!battleMode && Switch.Settings.Enabled)
+                        foreach (var swtch in Switches)
+                            swtch.Draw(canvas, mapParams, localPlayer);
 
-                    if (Config.ConnectGroups)
+                    if (!battleMode && Door.Settings.Enabled)
+                    {
+                        var doorsSet = Memory.Game?.Interactables._Doors;
+                        if (doorsSet is not null && doorsSet.Count > 0)
+                        {
+                            Doors = doorsSet.ToList();
+
+                            foreach (var door in Doors)
+                                door.Draw(canvas, mapParams, localPlayer);
+                        }
+                        else
+                        {
+                            Doors = null;
+                        }
+                    }
+
+                    if (Config.PlayersOnTop && Config.ConnectGroups)
                     {
                         var groupedPlayers = allPlayers?.Where(x => x.IsHumanHostileActive && x.GroupID != -1);
                         if (groupedPlayers is not null)
@@ -548,39 +599,16 @@ namespace eft_dma_radar
                         }
                     }
 
-                    if (!battleMode && Switch.Settings.Enabled)
-                        foreach (var swtch in Switches)
-                            swtch.Draw(canvas, mapParams, localPlayer);
-
-                    if (!battleMode && Door.Settings.Enabled)
-                    {
-                        var doorsSet = Memory.Game?.Interactables._Doors;
-                        if (doorsSet is not null && doorsSet.Count > 0)
-                        {
-                            Doors = doorsSet.ToList();
-
-                            foreach (var door in Doors)
-                                door.Draw(canvas, mapParams, localPlayer);
-                        }
-                        else
-                        {
-                            Doors = null;
-                        }
-                    }
-
-                    if (allPlayers is not null && Config.ShowInfoTab) // Players Overlay
-                        _playerInfo?.Draw(canvas, localPlayer, allPlayers);
+                    if (Config.PlayersOnTop)
+                        if (allPlayers is not null)
+                            foreach (var player in allPlayers)
+                            {
+                                if (player == localPlayer)
+                                    continue;
+                                player.Draw(canvas, mapParams, localPlayer);
+                            }
 
                     closestToMouse?.DrawMouseover(canvas, mapParams, localPlayer); // draw tooltip for object the mouse is closest to
-
-                    if (Config.ESPWidgetEnabled)
-                        _aimview?.Draw(canvas);
-
-                    if (Config.ShowDebugWidget)
-                        _debugInfo?.Draw(canvas);
-
-                    if (Config.ShowLootInfoWidget)
-                        _lootInfo?.Draw(canvas, UnfilteredLoot);
 
                     if (_activePings.Count > 0)
                     {
@@ -612,6 +640,21 @@ namespace eft_dma_radar
                             canvas.DrawCircle(center.X, center.Y, radius, paint);
                         }
                     }
+
+                    if (allPlayers is not null && Config.ShowInfoTab) // Players Overlay
+                        _playerInfo?.Draw(canvas, localPlayer, allPlayers);
+
+                    if (Config.AimviewWidgetEnabled)
+                        _aimview?.Draw(canvas);
+
+                    if (Config.ShowDebugWidget)
+                        _debugInfo?.Draw(canvas);
+
+                    if (Config.ShowLootInfoWidget)
+                        _lootInfo?.Draw(canvas, UnfilteredLoot);
+
+                    if (Config.ShowQuestInfoWidget)
+                        _questInfo?.Draw(canvas);
                 }
                 else // LocalPlayer is *not* in a Raid -> Display Reason
                 {
@@ -1060,16 +1103,15 @@ namespace eft_dma_radar
         {
             var left = 2;
             var top = 0;
+            var right = (float)skCanvas.ActualWidth;
+            var bottom = (float)skCanvas.ActualHeight;
 
             if (Config.Widgets.AimviewLocation == default)
             {
-                var right = (float)skCanvas.ActualWidth;
-                var bottom = (float)skCanvas.ActualHeight;
                 Config.Widgets.AimviewLocation = new SKRect(left, bottom - 200, left + 200, bottom);
             }
             if (Config.Widgets.PlayerInfoLocation == default)
             {
-                var right = (float)skCanvas.ActualWidth;
                 Config.Widgets.PlayerInfoLocation = new SKRect(right - 1, top + 45, right, top + 1);
             }
             if (Config.Widgets.DebugInfoLocation == default)
@@ -1080,11 +1122,16 @@ namespace eft_dma_radar
             {
                 Config.Widgets.LootInfoLocation = new SKRect(left, top + 45, left, top);
             }
+            if (Config.Widgets.QuestInfoLocation == default)
+            {
+                Config.Widgets.QuestInfoLocation = new SKRect(left, top + 50, left + 500, top);
+            }
 
-            _aimview = new EspWidget(skCanvas, Config.Widgets.AimviewLocation, Config.Widgets.AimviewMinimized, UIScale);
+            _aimview = new AimviewWidget(skCanvas, Config.Widgets.AimviewLocation, Config.Widgets.AimviewMinimized, UIScale);
             _playerInfo = new PlayerInfoWidget(skCanvas, Config.Widgets.PlayerInfoLocation, Config.Widgets.PlayerInfoMinimized, UIScale);
             _debugInfo = new DebugInfoWidget(skCanvas, Config.Widgets.DebugInfoLocation, Config.Widgets.DebugInfoMinimized, UIScale);
             _lootInfo = new LootInfoWidget(skCanvas, Config.Widgets.LootInfoLocation, Config.Widgets.LootInfoMinimized, UIScale);
+            _questInfo = new QuestInfoWidget(skCanvas, Config.Widgets.QuestInfoLocation, Config.Widgets.QuestInfoMinimized, UIScale);
         }
 
         public void UpdateRenderTimerInterval(int targetFPS)
@@ -1663,14 +1710,16 @@ namespace eft_dma_radar
                 if (!Config.WindowMaximized)
                     Config.WindowSize = new Size(ActualWidth, ActualHeight);
 
-                Config.Widgets.AimviewLocation = _aimview.Rectangle;
+                Config.Widgets.AimviewLocation = _aimview.ClientRect;
                 Config.Widgets.AimviewMinimized = _aimview.Minimized;
-                Config.Widgets.PlayerInfoLocation = _playerInfo.Rectangle;
+                Config.Widgets.PlayerInfoLocation = _playerInfo.ClientRect;
                 Config.Widgets.PlayerInfoMinimized = _playerInfo.Minimized;
-                Config.Widgets.DebugInfoLocation = _debugInfo.Rectangle;
+                Config.Widgets.DebugInfoLocation = _debugInfo.ClientRect;
                 Config.Widgets.DebugInfoMinimized = _debugInfo.Minimized;
-                Config.Widgets.LootInfoLocation = _lootInfo.Rectangle;
+                Config.Widgets.LootInfoLocation = _lootInfo.ClientRect;
                 Config.Widgets.LootInfoMinimized = _lootInfo.Minimized;
+                Config.Widgets.QuestInfoLocation = _questInfo.ClientRect;
+                Config.Widgets.QuestInfoMinimized = _questInfo.Minimized;
                 Config.Zoom = _zoom;
 
                 if (ESPForm.Window != null)

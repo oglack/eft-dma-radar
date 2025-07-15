@@ -64,6 +64,7 @@ namespace eft_dma_shared.Common.Misc.Data.TarkovMarket
                     objectives {
                       id
                       type
+                      optional
                       description
                       maps {
                         id

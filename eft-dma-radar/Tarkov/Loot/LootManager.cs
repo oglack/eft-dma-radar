@@ -218,7 +218,7 @@ namespace eft_dma_radar.Tarkov.Loot
                 {
                     try
                     {
-                        if (objectName.Equals("container_crete_04_COLLIDER(1)", StringComparison.OrdinalIgnoreCase))
+                        if (objectName.Equals("loot_collider", StringComparison.OrdinalIgnoreCase))
                         {
                             loot.Add(new LootAirdrop()
                             {
@@ -242,9 +242,7 @@ namespace eft_dma_radar.Tarkov.Loot
                             });
                         }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 else if (isLooseLoot)
                 {

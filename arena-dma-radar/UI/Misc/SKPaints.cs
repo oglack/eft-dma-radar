@@ -62,6 +62,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniLocalPlayer { get; } = new()
+        {
+            Color = SKColors.Green,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextLocalPlayer { get; } = new()
         {
             SubpixelText = true,
@@ -75,6 +84,15 @@ namespace arena_dma_radar.UI.Misc
         };
 
         public static SKPaint PaintTeammate { get; } = new()
+        {
+            Color = SKColors.LimeGreen,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniTeammate { get; } = new()
         {
             Color = SKColors.LimeGreen,
             StrokeWidth = 3,
@@ -104,6 +122,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniUSEC { get; } = new()
+        {
+            Color = SKColors.Red,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextUSEC { get; } = new()
         {
             SubpixelText = true,
@@ -117,6 +144,15 @@ namespace arena_dma_radar.UI.Misc
         };
 
         public static SKPaint PaintBEAR { get; } = new()
+        {
+            Color = SKColors.Blue,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniBEAR { get; } = new()
         {
             Color = SKColors.Blue,
             StrokeWidth = 3,
@@ -146,6 +182,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniSpecial { get; } = new()
+        {
+            Color = SKColors.HotPink,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextSpecial { get; } = new()
         {
             SubpixelText = true,
@@ -159,6 +204,15 @@ namespace arena_dma_radar.UI.Misc
         };
 
         public static SKPaint PaintStreamer { get; } = new()
+        {
+            Color = SKColors.MediumPurple,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniStreamer { get; } = new()
         {
             Color = SKColors.MediumPurple,
             StrokeWidth = 3,
@@ -188,6 +242,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniAimbotLocked { get; } = new()
+        {
+            Color = SKColors.Blue,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextAimbotLocked { get; } = new()
         {
             SubpixelText = true,
@@ -209,6 +272,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniAI { get; } = new()
+        {
+            Color = SKColors.Yellow,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextAI { get; } = new()
         {
             SubpixelText = true,
@@ -222,6 +294,15 @@ namespace arena_dma_radar.UI.Misc
         };
 
         public static SKPaint PaintFocused { get; } = new()
+        {
+            Color = SKColors.Coral,
+            StrokeWidth = 3,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniFocused { get; } = new()
         {
             Color = SKColors.Coral,
             StrokeWidth = 3,
@@ -263,10 +344,28 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniDeathMarker { get; } = new()
+        {
+            Color = SKColors.Black,
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         #endregion
 
         #region Loot Paints
         public static SKPaint PaintDefaultLoot { get; } = new()
+        {
+            Color = SKColors.WhiteSmoke,
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniLoot { get; } = new()
         {
             Color = SKColors.WhiteSmoke,
             StrokeWidth = 0.25f,
@@ -296,6 +395,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniThrowableLoot { get; } = new()
+        {
+            Color = SKColors.Orange,
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextThrowableLoot { get; } = new()
         {
             SubpixelText = true,
@@ -317,6 +425,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniWeaponLoot { get; } = new()
+        {
+            Color = SKColors.Orange,
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextWeaponLoot { get; } = new()
         {
             SubpixelText = true,
@@ -330,6 +447,15 @@ namespace arena_dma_radar.UI.Misc
         };
 
         public static SKPaint PaintMeds { get; } = new()
+        {
+            Color = SKColors.LightSalmon,
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniMeds { get; } = new()
         {
             Color = SKColors.LightSalmon,
             StrokeWidth = 0.25f,
@@ -359,6 +485,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniBackpacks { get; } = new()
+        {
+            Color = SKColor.Parse("00b02c"),
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextBackpacks { get; } = new()
         {
             SubpixelText = true,
@@ -380,6 +515,15 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintMiniContainerLoot { get; } = new()
+        {
+            Color = SKColor.Parse("00b02c"),
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextContainer { get; } = new()
         {
             SubpixelText = true,
@@ -395,6 +539,15 @@ namespace arena_dma_radar.UI.Misc
         public static SKPaint PaintRefillContainer { get; } = new()
         {
             Color = SKColor.Parse("FFFFCC"),
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniRefillContainer { get; } = new()
+        {
+            Color = SKColor.Parse("00b02c"),
             StrokeWidth = 0.25f,
             Style = SKPaintStyle.Fill,
             IsAntialias = true,
@@ -988,6 +1141,45 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint TextESPFPS { get; } = new()
+        {
+            SubpixelText = true,
+            Color = SKColors.White,
+            IsStroke = false,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Left,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint TextESPRaidStats { get; } = new()
+        {
+            SubpixelText = true,
+            Color = SKColors.White,
+            IsStroke = false,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Left,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint TextESPStatusText { get; } = new SKPaint()
+        {
+            SubpixelText = true,
+            Color = SKColors.Red,
+            IsStroke = false,
+            TextSize = 13,
+            TextAlign = SKTextAlign.Center,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint TextMagazineESP { get; } = new()
         {
             SubpixelText = true,
@@ -1062,6 +1254,63 @@ namespace arena_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintFireportAimESP { get; } = new()
+        {
+            Color = SKColors.White,
+            StrokeWidth = 1f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintAimbotFOVESP { get; } = new()
+        {
+            Color = SKColors.White,
+            StrokeWidth = 1f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint TextESPClosestPlayer { get; } = new()
+        {
+            SubpixelText = true,
+            Color = SKColors.White,
+            IsStroke = false,
+            TextSize = 13f,
+            TextAlign = SKTextAlign.Left,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintAimbotLockedLineESP { get; } = new()
+        {
+            Color = SKColors.Blue,
+            StrokeWidth = 1,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniRadarOutlineESP { get; } = new()
+        {
+            Color = SKColors.WhiteSmoke,
+            StrokeWidth = 2,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniRadarResizeHandleESP { get; } = new()
+        {
+            Color = SKColors.WhiteSmoke,
+            StrokeWidth = 2,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
         #endregion
 
         #endregion

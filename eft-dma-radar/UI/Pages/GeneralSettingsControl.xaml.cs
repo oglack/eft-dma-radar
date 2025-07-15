@@ -41,6 +41,7 @@ using Clipboard = System.Windows.Clipboard;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using InputManager = eft_dma_shared.Common.Misc.InputManager;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
@@ -69,6 +70,7 @@ namespace eft_dma_radar.UI.Pages
         private readonly Dictionary<string, bool> _toggleStates = new();
         private readonly Dictionary<string, DateTime> _lastExecutionTime = new();
         private const int HOTKEY_COOLDOWN_MS = 50; // Prevent spam
+        private bool _keyInputBoxIsCapturing = false;
 
         private const int INTERVAL = 100; // 0.1 second
         private const int HK_ZoomAmt = 2; // amt to zoom
@@ -97,6 +99,7 @@ namespace eft_dma_radar.UI.Pages
             "Level",
             "Name",
             "Night Vision",
+            "KD",
             "Tag",
             "Thermal",
             "UBGL",
@@ -106,16 +109,18 @@ namespace eft_dma_radar.UI.Pages
 
         private readonly string[] _availableWidgets = new string[]
         {
-            "ESP Widget",
+            "Aimview Widget",
             "Debug Widget",
             "Player Info Widget",
-            "Loot Info Widget"
+            "Loot Info Widget",
+            "Quest Info Widget"
         };
 
         private readonly string[] _availableGeneralOptions = new string[]
         {
             "Connect Groups",
-            "Mask Names"
+            "Mask Names",
+            "Players on Top"
         };
 
         private readonly string[] _availableEntityInformation = new string[]
@@ -149,6 +154,7 @@ namespace eft_dma_radar.UI.Pages
                     expPlayerColors,
                     expLootColors,
                     expOtherColors,
+                    expHUDColors,
                     expInterfaceColors,
                     expApplicationHotkeys);
 
@@ -239,8 +245,8 @@ namespace eft_dma_radar.UI.Pages
                 var jsonData = JsonSerializer.Serialize(configForExport, options);
                 Clipboard.SetText(jsonData);
 
-                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache and WebRadar settings excluded)");
-                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache and WebRadar)");
+                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache & WebRadar settings excluded)");
+                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache & WebRadar)");
             }
             catch (Exception ex)
             {
@@ -260,18 +266,22 @@ namespace eft_dma_radar.UI.Pages
                 }
 
                 var clipboardText = Clipboard.GetText();
+
+
+
                 var warningResult = MessageBox.Show(
-                        "WARNING: Importing a configuration will replace most current settings including:\n\n" +
-                        "• Compatible general settings & UI preferences\n" +
+                        "WARNING: Importing a configuration will replace current settings including:\n\n" +
+                        "• General settings & UI preferences\n" +
                         "• Player/Entity display settings\n" +
-                        "• Color configurations (compatible colors only)\n" +
+                        "• Color configurations\n" +
                         "• Hotkey assignments\n" +
                         "• ESP configurations\n" +
                         "• Panel and toolbar positions\n" +
                         "• Memory writing settings\n" +
-                        "• And other compatible settings\n\n" +
-                        "NOTE: Incompatible settings will be ignored.\n" +
-                        "Cache settings will be preserved.\n\n" +
+                        "• Loot settings\n" +
+                        "• Quest helper settings\n" +
+                        "• Container settings\n\n" +
+                        "NOTE: Cache & Web Radar data will not be preserved.\n\n" +
                         "This action cannot be undone. Continue?",
                         "Import Configuration Warning",
                         MessageBoxButton.YesNo,
@@ -298,8 +308,7 @@ namespace eft_dma_radar.UI.Pages
                                 IgnoreReadOnlyProperties = true,
                                 ReadCommentHandling = JsonCommentHandling.Skip,
                                 AllowTrailingCommas = true,
-                                PropertyNameCaseInsensitive = true,
-                                Converters = { new SafeEnumConverter() }
+                                PropertyNameCaseInsensitive = true
                             };
 
                             importedConfig = JsonSerializer.Deserialize<Config>(clipboardText, options);
@@ -309,7 +318,7 @@ namespace eft_dma_radar.UI.Pages
                                 throw new InvalidOperationException("Deserialized config is null");
                             }
 
-                            LoneLogging.WriteLine("[Config] Configuration deserialized successfully with ignored incompatible properties");
+                            LoneLogging.WriteLine("[Config] Configuration deserialized successfully");
                         }
                         catch (Exception ex)
                         {
@@ -334,10 +343,11 @@ namespace eft_dma_radar.UI.Pages
 
                             var currentCache = Config.Cache;
                             var currentWebRadar = Config.WebRadar;
-                            importedConfig.WebRadar = currentWebRadar;
 
                             Config.EnsureComplexObjectsInitialized(importedConfig);
+
                             importedConfig.Cache = currentCache;
+                            importedConfig.WebRadar = currentWebRadar;
 
                             if (importedConfig.MemWrites.MemWritesEnabled)
                             {
@@ -423,7 +433,6 @@ namespace eft_dma_radar.UI.Pages
                             });
 
                             await Task.Run(() => RefreshQuestData());
-
                             await Dispatcher.InvokeAsync(() =>
                             {
                                 UpdateFeatureInstances();
@@ -431,16 +440,16 @@ namespace eft_dma_radar.UI.Pages
 
                             Config.Save();
 
-                            LoneLogging.WriteLine("[Config] Configuration imported successfully - compatible settings applied, incompatible ones ignored");
+                            LoneLogging.WriteLine("[Config] Configuration imported successfully");
                         }
                         catch (Exception ex)
                         {
-                            LoneLogging.WriteLine($"[Config] Import error during application: {ex}");
+                            LoneLogging.WriteLine($"[Config] Import error during config application: {ex}");
                             throw;
                         }
                     });
 
-                    NotificationsShared.Success("Configuration imported successfully! Compatible settings applied, incompatible settings ignored.");
+                    NotificationsShared.Success("Configuration imported successfully!");
                 }
                 catch (Exception ex)
                 {
@@ -627,9 +636,12 @@ namespace eft_dma_radar.UI.Pages
             chkHeightIndicator.Unchecked += GeneralCheckbox_Checked;
             chkImportantIndicator.Checked += GeneralCheckbox_Checked;
             chkImportantIndicator.Unchecked += GeneralCheckbox_Checked;
+            chkHighAlert.Checked += GeneralCheckbox_Checked;
+            chkHighAlert.Unchecked += GeneralCheckbox_Checked;
             sldrPlayerTypeRenderDistance.ValueChanged += GeneralSlider_ValueChanged;
             sldrPlayerTypeAimlineLength.ValueChanged += GeneralSlider_ValueChanged;
             ccbInformation.SelectionChanged += playerInfoCheckComboBox_SelectionChanged;
+            sldrMinimumKD.ValueChanged += GeneralSlider_ValueChanged;
 
             // Entity Information
             cboEntityType.SelectionChanged += cboEntityType_SelectionChanged;
@@ -659,6 +671,8 @@ namespace eft_dma_radar.UI.Pages
             chkQuestsSelectAll.Unchecked += GeneralCheckbox_Checked;
             chkKappaFilter.Checked += GeneralCheckbox_Checked;
             chkKappaFilter.Unchecked += GeneralCheckbox_Checked;
+            chkOptionalTaskFilter.Checked += GeneralCheckbox_Checked;
+            chkOptionalTaskFilter.Unchecked += GeneralCheckbox_Checked;
             chkKillZones.Checked += GeneralCheckbox_Checked;
             chkKillZones.Unchecked += GeneralCheckbox_Checked;
 
@@ -691,6 +705,7 @@ namespace eft_dma_radar.UI.Pages
             // Quest Helper
             chkQuestHelper.IsChecked = Config.QuestHelper.Enabled;
             chkKappaFilter.IsChecked = Config.QuestHelper.KappaFilter;
+            chkOptionalTaskFilter.IsChecked = Config.QuestHelper.OptionalTaskFilter;
             chkKillZones.IsChecked = Config.QuestHelper.KillZones;
             RefreshQuestHelper();
 
@@ -784,7 +799,8 @@ namespace eft_dma_radar.UI.Pages
                 new ComboBoxItem { Content = "Grenade", Tag = "Grenade" },
                 new ComboBoxItem { Content = "Tripwire", Tag = "Tripwire" },
                 new ComboBoxItem { Content = "Mine", Tag = "Mine" },
-                new ComboBoxItem { Content = "Mortar Projectile", Tag = "MortarProjectile" }
+                new ComboBoxItem { Content = "Mortar Projectile", Tag = "MortarProjectile" },
+                new ComboBoxItem { Content = "Airdrop", Tag = "Airdrop" }
             };
 
             entityTypeItems.Sort((x, y) => string.Compare(x.Content.ToString(), y.Content.ToString()));
@@ -840,10 +856,11 @@ namespace eft_dma_radar.UI.Pages
         {
             var optionsToUpdate = new Dictionary<string, bool>
             {
-                ["ESP Widget"] = Config.ESPWidgetEnabled,
+                ["Aimview Widget"] = Config.AimviewWidgetEnabled,
                 ["Debug Widget"] = Config.ShowDebugWidget,
                 ["Player Info Widget"] = Config.ShowInfoTab,
-                ["Loot Info Widget"] = Config.ShowLootInfoWidget
+                ["Loot Info Widget"] = Config.ShowLootInfoWidget,
+                ["Quest Info Widget"] = Config.ShowQuestInfoWidget
             };
 
             foreach (CheckComboBoxItem item in ccbWidgets.Items)
@@ -860,7 +877,8 @@ namespace eft_dma_radar.UI.Pages
             var optionsToUpdate = new Dictionary<string, bool>
             {
                 ["Connect Groups"] = Config.ConnectGroups,
-                ["Mask Names"] = Config.MaskNames
+                ["Mask Names"] = Config.MaskNames,
+                ["Players on Top"] = Config.PlayersOnTop
             };
 
             foreach (CheckComboBoxItem item in ccbGeneralOptions.Items)
@@ -917,8 +935,10 @@ namespace eft_dma_radar.UI.Pages
 
                 chkHeightIndicator.IsChecked = settings.HeightIndicator;
                 chkImportantIndicator.IsChecked = settings.ImportantIndicator;
+                chkHighAlert.IsChecked = settings.HighAlert;
                 sldrPlayerTypeRenderDistance.Value = settings.RenderDistance;
                 sldrPlayerTypeAimlineLength.Value = settings.AimlineLength;
+                sldrMinimumKD.Value = settings.MinKD;
 
                 ccbInformation.SelectedItems.Clear();
 
@@ -936,6 +956,30 @@ namespace eft_dma_radar.UI.Pages
             {
                 _isLoadingPlayerSettings = false;
             }
+
+            UpdatePlayerInformationControlsVisibility();
+        }
+
+        private void UpdatePlayerInformationControlsVisibility()
+        {
+            if (_isLoadingPlayerSettings)
+                return;
+
+            kdSettings.Visibility = Visibility.Collapsed;
+
+            var showKD = false;
+            foreach (CheckComboBoxItem item in ccbInformation.SelectedItems)
+            {
+                var info = item.Content.ToString();
+                if (info == "KD")
+                {
+                    showKD = true;
+                    break;
+                }
+            }
+
+            if (showKD)
+                kdSettings.Visibility = Visibility.Visible;
         }
 
         private void SavePlayerTypeSettings(string playerType)
@@ -946,8 +990,10 @@ namespace eft_dma_radar.UI.Pages
             var settings = Config.PlayerTypeSettings.GetSettings(playerType);
             settings.HeightIndicator = chkHeightIndicator.IsChecked == true;
             settings.ImportantIndicator = chkImportantIndicator.IsChecked == true;
+            settings.HighAlert = chkHighAlert.IsChecked == true;
             settings.RenderDistance = (int)sldrPlayerTypeRenderDistance.Value;
             settings.AimlineLength = (int)sldrPlayerTypeAimlineLength.Value;
+            settings.MinKD = (float)sldrMinimumKD.Value;
             settings.Information.Clear();
 
             foreach (CheckComboBoxItem item in ccbInformation.SelectedItems)
@@ -1061,19 +1107,19 @@ namespace eft_dma_radar.UI.Pages
 
         public void RefreshQuestHelper()
         {
-            if (Config.QuestHelper.Enabled && Memory.InRaid && Memory.QuestManager is QuestManager quests)
+            if (Config.QuestHelper.Enabled && Memory.InRaid && Memory.QuestManager is QuestManager questManager)
             {
                 Dispatcher.Invoke(() =>
                 {
                     var existingIds = QuestItems.Select(q => q.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     var newQuestItems = new List<QuestListItem>();
 
-                    foreach (var quest in quests.CurrentQuests)
+                    foreach (var quest in questManager.ActiveQuests)
                     {
-                        if (!existingIds.Contains(quest))
+                        if (!existingIds.Contains(quest.Id))
                         {
-                            var enabled = !Config.QuestHelper.BlacklistedQuests.Contains(quest, StringComparer.OrdinalIgnoreCase);
-                            newQuestItems.Add(new QuestListItem(quest, enabled));
+                            var enabled = !Config.QuestHelper.BlacklistedQuests.Contains(quest.Id, StringComparer.OrdinalIgnoreCase);
+                            newQuestItems.Add(new QuestListItem(quest.Id, enabled));
                         }
                     }
 
@@ -1084,9 +1130,10 @@ namespace eft_dma_radar.UI.Pages
                         QuestItems.Add(item);
                     }
 
+                    var activeQuestIds = questManager.ActiveQuests.Select(q => q.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     for (int i = QuestItems.Count - 1; i >= 0; i--)
                     {
-                        if (!quests.CurrentQuests.Contains(QuestItems[i].Id))
+                        if (!activeQuestIds.Contains(QuestItems[i].Id))
                             QuestItems.RemoveAt(i);
                     }
 
@@ -1136,10 +1183,11 @@ namespace eft_dma_radar.UI.Pages
             mainWindow?.PlayerInfo?.SetScaleFactor(newScale);
             mainWindow?.LootInfo?.SetScaleFactor(newScale);
             mainWindow?.DebugInfo?.SetScaleFactor(newScale);
+            mainWindow?.QuestInfo?.SetScaleFactor(newScale);
 
             #region UpdatePaints
 
-            /// Outlines
+            // Outlines
             SKPaints.TextOutline.TextSize = 12f * newScale;
             SKPaints.TextOutline.StrokeWidth = 2f * newScale;
             // Shape Outline is computed before usage due to different stroke widths
@@ -1159,8 +1207,6 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextSpecial.TextSize = 12 * newScale;
             SKPaints.PaintStreamer.StrokeWidth = 3 * newScale;
             SKPaints.TextStreamer.TextSize = 12 * newScale;
-            SKPaints.PaintAimbotLocked.StrokeWidth = 3 * newScale;
-            SKPaints.TextAimbotLocked.TextSize = 12 * newScale;
             SKPaints.PaintAimbotLocked.StrokeWidth = 3 * newScale;
             SKPaints.TextAimbotLocked.TextSize = 12 * newScale;
             SKPaints.PaintScav.StrokeWidth = 3 * newScale;
@@ -1184,6 +1230,8 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextBackpacks.TextSize = 12 * newScale;
             SKPaints.PaintQuestItem.StrokeWidth = 3 * newScale;
             SKPaints.TextQuestItem.TextSize = 12 * newScale;
+            SKPaints.PaintAirdrop.StrokeWidth = 3 * newScale;
+            SKPaints.TextAirdrop.TextSize = 12 * newScale;
             SKPaints.PaintWishlistItem.StrokeWidth = 3 * newScale;
             SKPaints.TextWishlistItem.TextSize = 12 * newScale;
             SKPaints.QuestHelperPaint.StrokeWidth = 3 * newScale;
@@ -1343,6 +1391,7 @@ namespace eft_dma_radar.UI.Pages
             var enabled = Config.QuestHelper.Enabled;
 
             chkKappaFilter.IsEnabled = enabled;
+            chkOptionalTaskFilter.IsEnabled = enabled;
             chkKillZones.IsEnabled = enabled;
             chkQuestsSelectAll.IsEnabled = enabled;
             listQuests.IsEnabled = enabled;
@@ -1375,26 +1424,9 @@ namespace eft_dma_radar.UI.Pages
                     case "ShowMapSetup":
                         ToggleMapSetup();
                         break;
-                    case "ESPWidget":
-                        Config.ESPWidgetEnabled = value;
-                        break;
-                    case "PlayerInfoWidget":
-                        Config.ShowInfoTab = value;
-                        break;
-                    case "ConnectGroups":
-                        Config.ConnectGroups = value;
-                        break;
-                    case "MaskNames":
-                        Config.MaskNames = value;
-                        break;
-                    case "DebugWidget":
-                        Config.ShowDebugWidget = value;
-                        break;
-                    case "LootInfoWidget":
-                        Config.ShowLootInfoWidget = value;
-                        break;
                     case "PlayerHeightIndicator":
                     case "ImportantIndicator":
+                    case "HighAlert":
                         SavePlayerTypeSettings();
                         break;
                     case "ShowExplosiveRadius":
@@ -1417,6 +1449,9 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "KappaFilter":
                         Config.QuestHelper.KappaFilter = value;
+                        break;
+                    case "OptionalTaskFilter":
+                        Config.QuestHelper.OptionalTaskFilter = value;
                         break;
                     case "KillZones":
                         Config.QuestHelper.KillZones = value;
@@ -1522,6 +1557,7 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "PlayerTypeRenderDistance":
                     case "PlayerTypeAimlineLength":
+                    case "MinimumKD":
                         SavePlayerTypeSettings(); break;
                     case "EntityTypeRenderDistance":
                         SaveEntityTypeSettings(); break;
@@ -1665,8 +1701,8 @@ namespace eft_dma_radar.UI.Pages
 
                 switch (widgetOption)
                 {
-                    case "ESP Widget":
-                        Config.ESPWidgetEnabled = isSelected;
+                    case "Aimview Widget":
+                        Config.AimviewWidgetEnabled = isSelected;
                         break;
                     case "Debug Widget":
                         Config.ShowDebugWidget = isSelected;
@@ -1676,6 +1712,9 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "Loot Info Widget":
                         Config.ShowLootInfoWidget = isSelected;
+                        break;
+                    case "Quest Info Widget":
+                        Config.ShowQuestInfoWidget = isSelected;
                         break;
                 }
             }
@@ -1702,6 +1741,9 @@ namespace eft_dma_radar.UI.Pages
                     case "Mask Names":
                         Config.MaskNames = isSelected;
                         break;
+                    case "Players on Top":
+                        Config.PlayersOnTop = isSelected;
+                        break;
                 }
             }
 
@@ -1723,6 +1765,7 @@ namespace eft_dma_radar.UI.Pages
         private void playerInfoCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             SavePlayerTypeSettings();
+            UpdatePlayerInformationControlsVisibility();
         }
 
         private void cboEntityType_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1770,6 +1813,7 @@ namespace eft_dma_radar.UI.Pages
             btnFoodFilterLootColor.Click += ColorButton_Clicked;
             btnBackpackFilterLootColor.Click += ColorButton_Clicked;
             btnQuestLootColor.Click += ColorButton_Clicked;
+            btnAirdropsColor.Click += ColorButton_Clicked;
             btnQuestItemsAndZonesColor.Click += ColorButton_Clicked;
 
             // Other
@@ -1787,6 +1831,21 @@ namespace eft_dma_radar.UI.Pages
             btnDoorLockedColor.Click += ColorButton_Clicked;
             btnDoorShutColor.Click += ColorButton_Clicked;
             btnGroupLinesColor.Click += ColorButton_Clicked;
+
+            // Fuser HUD Colors
+            btnFPSColor.Click += ColorButton_Clicked;
+            btnRaidStatsColor.Click += ColorButton_Clicked;
+            btnStatusTextColor.Click += ColorButton_Clicked;
+            btnMagazineInfoColor.Click += ColorButton_Clicked;
+            btnEnergyBarColor.Click += ColorButton_Clicked;
+            btnHydrationBarColor.Click += ColorButton_Clicked;
+            btnCrosshairColor.Click += ColorButton_Clicked;
+            btnFireportAimColor.Click += ColorButton_Clicked;
+            btnAimbotFOVColor.Click += ColorButton_Clicked;
+            btnAimbotLockColor.Click += ColorButton_Clicked;
+            btnClosestPlayerColor.Click += ColorButton_Clicked;
+            btnTopLootColor.Click += ColorButton_Clicked;
+            btnMiniRadarThemeColor.Click += ColorButton_Clicked;
 
             // Interface
             btnAccentColor.Click += ColorButton_Clicked;
@@ -1903,6 +1962,7 @@ namespace eft_dma_radar.UI.Pages
             _brushFields["FoodFilterLoot"] = foodFilterLootBrush;
             _brushFields["BackpackFilterLoot"] = backpackFilterLootBrush;
             _brushFields["QuestLoot"] = questLootBrush;
+            _brushFields["Airdrops"] = airdropsBrush;
             _brushFields["StaticQuestItemsAndZones"] = questItemsAndZonesBrush;
 
             // Other colors
@@ -1920,6 +1980,21 @@ namespace eft_dma_radar.UI.Pages
             _brushFields["DoorLocked"] = doorLockedBrush;
             _brushFields["DoorShut"] = doorShutBrush;
             _brushFields["GroupLines"] = groupLinesBrush;
+
+            // Fuser HUD colors
+            _brushFields["FPS"] = FPSBrush;
+            _brushFields["RaidStats"] = raidStatsBrush;
+            _brushFields["StatusText"] = statusTextBrush;
+            _brushFields["MagazineInfo"] = magazineInfoBrush;
+            _brushFields["EnergyBar"] = energyBarBrush;
+            _brushFields["HydrationBar"] = hydrationBarBrush;
+            _brushFields["Crosshair"] = crosshairBrush;
+            _brushFields["FireportAim"] = fireportAimBrush;
+            _brushFields["AimbotFOV"] = aimbotFOVBrush;
+            _brushFields["AimbotLock"] = aimbotLockBrush;
+            _brushFields["ClosestPlayer"] = closestPlayerBrush;
+            _brushFields["TopLoot"] = topLootBrush;
+            _brushFields["MiniRadarTheme"] = miniRadarThemeBrush;
 
             // Interface colors
             _brushFields["Interface.Accent"] = accentColor;
@@ -2119,6 +2194,9 @@ namespace eft_dma_radar.UI.Pages
         {
             btnAddHotkey.Click += btnAddHotkey_Click;
             btnRemoveHotkey.Click += btnRemoveHotkey_Click;
+
+            cboAction.PreviewKeyDown += cboAction_PreviewKeyDown;
+            keyInputBox.CapturingStateChanged += KeyInputBox_CapturingStateChanged;
         }
 
         private void RegisterHotkeyHandlers()
@@ -2375,6 +2453,8 @@ namespace eft_dma_radar.UI.Pages
             {
                 nameof(HotkeyConfig.ZoomIn) => true,
                 nameof(HotkeyConfig.ZoomOut) => true,
+                nameof(HotkeyConfig.MiniRadarZoomIn) => true,
+                nameof(HotkeyConfig.MiniRadarZoomOut) => true,
                 _ => false
             };
         }
@@ -2436,6 +2516,10 @@ namespace eft_dma_radar.UI.Pages
                     Config.ProcessLoot = isActive;
                     mainWindow.LootSettingsControl.chkProcessLoot.IsChecked = isActive;
                     break;
+                case nameof(HotkeyConfig.ShowWishlistLoot):
+                    Config.LootWishlist = isActive;
+                    mainWindow.LootSettingsControl.chkShowLootWishlist.IsChecked = isActive;
+                    break;
                 case nameof(HotkeyConfig.ShowMeds):
                     LootFilterControl.ShowMeds = isActive;
                     mainWindow.LootSettingsControl.UpdateSpecificLootFilterOption("Show Meds", isActive);
@@ -2458,6 +2542,16 @@ namespace eft_dma_radar.UI.Pages
                 case nameof(HotkeyConfig.ToggleFuserESP):
                     ESPForm.ShowESP = isActive;
                     break;
+                case nameof(HotkeyConfig.MiniRadarZoomIn):
+                    ExecuteContinuousAction(actionKey, () => ESPForm.Window?.ZoomIn(HK_ZoomAmt));
+                    break;
+                case nameof(HotkeyConfig.MiniRadarZoomOut):
+                    ExecuteContinuousAction(actionKey, () => ESPForm.Window?.ZoomOut(HK_ZoomAmt));
+                    break;
+                case nameof(HotkeyConfig.FuserQuestInfo):
+                    Config.ESP.ShowQuestInfoWidget = isActive;
+                    mainWindow.ESPControl.UpdateSpecificWidgetOption("Quest Info Widget", isActive);
+                    break;
                 #endregion
 
                 #region Memory Writes
@@ -2473,6 +2567,9 @@ namespace eft_dma_radar.UI.Pages
                     break;
                 case nameof(HotkeyConfig.EngageAimbot):
                     Aimbot.Engaged = isActive;
+                    break;
+                case nameof(HotkeyConfig.EngageLTW):
+                    LootThroughWalls.ZoomEngaged = isActive;
                     break;
                 case nameof(HotkeyConfig.ToggleAimbotMode):
                     if (isActive)
@@ -2614,9 +2711,9 @@ namespace eft_dma_radar.UI.Pages
                 #endregion
 
                 #region General Settings
-                case nameof(HotkeyConfig.ESPWidget):
-                    Config.ESPWidgetEnabled = isActive;
-                    UpdateSpecificWidgetOption("ESP Widget", isActive);
+                case nameof(HotkeyConfig.AimviewWidget):
+                    Config.AimviewWidgetEnabled = isActive;
+                    UpdateSpecificWidgetOption("Aimview Widget", isActive);
                     break;
                 case nameof(HotkeyConfig.DebugWidget):
                     Config.ShowDebugWidget = isActive;
@@ -2630,6 +2727,10 @@ namespace eft_dma_radar.UI.Pages
                     Config.ShowLootInfoWidget = isActive;
                     UpdateSpecificWidgetOption("Loot Info Widget", isActive);
                     break;
+                case nameof(HotkeyConfig.QuestInfoWidget):
+                    Config.ShowLootInfoWidget = isActive;
+                    UpdateSpecificWidgetOption("Quest Info Widget", isActive);
+                    break;
                 case nameof(HotkeyConfig.ConnectGroups):
                     Config.ConnectGroups = isActive;
                     UpdateSpecificGeneralOption("Connect Groups", isActive);
@@ -2637,6 +2738,10 @@ namespace eft_dma_radar.UI.Pages
                 case nameof(HotkeyConfig.MaskNames):
                     Config.MaskNames = isActive;
                     UpdateSpecificGeneralOption("Mask Names", isActive);
+                    break;
+                case nameof(HotkeyConfig.PlayersOnTop):
+                    Config.PlayersOnTop = isActive;
+                    UpdateSpecificGeneralOption("Players on Top", isActive);
                     break;
                 case nameof(HotkeyConfig.ZoomIn):
                     ExecuteContinuousAction(actionKey, () => mainWindow.ZoomIn(HK_ZoomAmt));
@@ -2796,6 +2901,17 @@ namespace eft_dma_radar.UI.Pages
                 RegisterHotkeyHandlers();
                 RefreshHotkeyDisplay();
             }
+        }
+
+        private void KeyInputBox_CapturingStateChanged(object sender, bool isCapturing)
+        {
+            _keyInputBoxIsCapturing = isCapturing;
+        }
+
+        private void cboAction_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_keyInputBoxIsCapturing)
+                e.Handled = true;
         }
         #endregion
         #endregion

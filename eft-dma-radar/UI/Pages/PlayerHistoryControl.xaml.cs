@@ -23,6 +23,7 @@ using static eft_dma_radar.Tarkov.EFTPlayer.Player;
 using UserControl = System.Windows.Controls.UserControl;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 
 namespace eft_dma_radar.UI.Pages
 {
@@ -255,7 +256,7 @@ namespace eft_dma_radar.UI.Pages
             {
                 try
                 {
-                    if (HandyControl.Controls.MessageBox.Show(
+                    if (MessageBox.Show(
                         $"Add player '{selectedEntry.Name}' to the watchlist?",
                         "Confirm",
                         MessageBoxButton.YesNo,

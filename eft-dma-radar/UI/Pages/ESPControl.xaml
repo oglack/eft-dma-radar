@@ -55,7 +55,7 @@
 
                                     <!-- Chams Material Management -->
                                     <GroupBox Header="Material Management" Style="{StaticResource TransparentGroupBoxStyle}"
-                                              Padding="5,0,5,5" Margin="0,0,0,0">
+                                              Padding="5,0,5,5" Margin="0,0,0,8">
                                         <hc:SimpleStackPanel Margin="0,5,0,0">
                                             <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
@@ -85,7 +85,7 @@
                                                            VerticalAlignment="Center"/>
                                             </Grid>
 
-                                            <Grid>
+                                            <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="8"/>
@@ -108,6 +108,22 @@
                                                         ToolTip="Clear chams material cache and force full reload on next refresh."
                                                         Tag="ClearChamsCache"/>
                                             </Grid>
+
+                                            <hc:SimpleStackPanel Margin="0,0,0,0">
+                                                <!-- Warning Text -->
+                                                <TextBlock x:Name="txtAdvancedMemWritesWarning"
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource LabelText}"
+                                                           FontSize="13"
+                                                           TextAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                           <Run Text="⚠" FontSize="16" />
+                                                           <Run Text="Advanced Material Types"/>
+                                                           <Run Text="(WireFrame, VisCheck Glow, VisCheck Flat)" FontWeight="Bold"/>
+                                                           <Run Text="require"/>
+                                                           <Run Text="Advanced Memory Writes" FontWeight="Bold" Foreground="Orange"/>
+                                                </TextBlock>
+                                            </hc:SimpleStackPanel>
                                         </hc:SimpleStackPanel>
                                     </GroupBox>
                                 </hc:SimpleStackPanel>
@@ -356,6 +372,13 @@
                                                 Grid.Column="1"/>
                                     </Grid>
 
+                                    <!-- Widgets -->
+                                    <hc:CheckComboBox x:Name="ccbWidgets" Grid.Column="1" Margin="0,0,0,8"
+                                                          Style="{StaticResource CheckComboBoxExtend}"
+                                                          hc:TitleElement.Title="Widgets"
+                                                          hc:TitleElement.TitlePlacement="Top"
+                                                          hc:InfoElement.Placeholder="Quest Info Widget..."/>
+
                                     <hc:CheckComboBox x:Name="ccbESPOptions" Grid.Column="1" Margin="0,0,0,0"
                                                       Style="{StaticResource CheckComboBoxExtend}"
                                                       hc:TitleElement.Title="Options"
@@ -364,7 +387,7 @@
                                 </hc:SimpleStackPanel>
                             </Expander>
 
-                            <!-- Render Settings Section -->
+                            <!-- Crosshair Settings Section -->
                             <Expander x:Name="expFuserCrosshairSettings" Header="Crosshair Settings" Style="{StaticResource PanelExpander}" IsExpanded="True">
                                 <hc:SimpleStackPanel Style="{StaticResource ExpanderContent}" Margin="2,8,2,0">
                                     <Grid Margin="5">
@@ -400,6 +423,42 @@
                                                 IsSnapToTickEnabled="True"
                                                 ContentStringFormat="{}{0:0.0x}" 
                                                 Grid.Column="1" Grid.Row="1"/>
+                                    </Grid>
+                                </hc:SimpleStackPanel>
+                            </Expander>
+
+                            <!-- Mini Radar Settings Section -->
+                            <Expander x:Name="expFuserMiniRadarSettings" Header="Mini Radar Settings" Style="{StaticResource PanelExpander}" IsExpanded="True">
+                                <hc:SimpleStackPanel Style="{StaticResource ExpanderContent}" Margin="2,8,2,0">
+                                    <Grid Margin="5">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <CheckBox x:Name="chkMiniRadarEnabled" Content="Enable Mini Radar" 
+                                                      Style="{StaticResource DynamicCheckBoxStyle}" 
+                                                     Grid.Row="0" Grid.Column="0" Margin="0,0,0,8" Tag="MiniRadarEnabled"/>
+
+                                        <CheckBox x:Name="chkMiniRadarLoot" Content="Show Loot" 
+                                                      Style="{StaticResource DynamicCheckBoxStyle}" 
+                                                     Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" Tag="MiniRadarLoot"/>
+
+                                        <!-- Mini Radar Scale Slider -->
+                                        <TextBlock Text="Scale" Style="{StaticResource LabelText}" 
+                                                   VerticalAlignment="Center" Grid.Row="2" Grid.Column="0"/>
+                                        <controls:TextValueSlider
+                                                x:Name="sldrFuserMiniRadarScale" Tag="FuserMiniRadarScale"
+                                                Minimum="0.5" Maximum="5"
+                                                SmallChange="0.1" TickFrequency="0.1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0x}" 
+                                                Grid.Row="2" Grid.Column="1"/>
                                     </Grid>
                                 </hc:SimpleStackPanel>
                             </Expander>
@@ -464,6 +523,25 @@
                                             <ComboBoxItem Content="Head Dot"/>
                                         </hc:ComboBox>
                                     </Grid>
+
+                                    <hc:SimpleStackPanel x:Name="playerSpecificSettings" Margin="0,0,0,0">
+                                        <!-- KD Settings -->
+                                        <Grid x:Name="kdSettings" Visibility="Collapsed" Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Minimum KD" Style="{StaticResource LabelText}" 
+                                                VerticalAlignment="Center" Grid.Column="0"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrMinimumKD" Tag="MinimumKD"
+                                                Minimum="0.1" Maximum="15.0"
+                                                SmallChange="0.1" TickFrequency="0.1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0}" 
+                                                Grid.Column="1"/>
+                                        </Grid>
+                                    </hc:SimpleStackPanel>
 
                                     <!-- Information Selection -->
                                     <hc:CheckComboBox x:Name="ccbFuserPlayerInformation" Grid.Column="1" Margin="0,0,0,0"

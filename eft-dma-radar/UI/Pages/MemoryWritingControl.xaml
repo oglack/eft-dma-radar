@@ -68,7 +68,7 @@
 
                                 <CheckBox x:Name="chkAntiPage" Content="Anti-Page" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Row="1" Grid.Column="2" 
+                                          Grid.Row="1" Grid.Column="1" 
                                           Margin="5,0,0,8" Tag="AntiPage"/>
 
                                 <CheckBox x:Name="chkRageMode" Content="Rage Mode" 
@@ -78,7 +78,7 @@
 
                                 <Button x:Name="btnAntiAFK" Content="Anti AFK" 
                                         Grid.Row="4" Grid.Column="0"
-                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Left"/>
+                                        Style="{StaticResource ButtonPrimary}"/>
 
                                 <Button x:Name="btnUnlockMaps" Content="Unlock maps"
                                         Grid.Row="4" Grid.Column="1"
@@ -86,7 +86,7 @@
 
                                 <Button x:Name="btnGymHack" Content="Gym Hack"
                                         Grid.Row="4" Grid.Column="2"
-                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Right"/>
+                                        Style="{StaticResource ButtonPrimary}"/>
                             </Grid>
                         </hc:SimpleStackPanel>
                     </Expander>
@@ -435,7 +435,7 @@
                                           Grid.Row="1" Grid.Column="0" 
                                           Margin="0,0,5,0" Tag="NoInertia"/>
                             </Grid>
-
+                            
                             <Grid Grid.Row="1" Margin="0,0,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -484,6 +484,7 @@
                                             Padding="6" Grid.Column="1"
                                             hc:IconElement.Width="16"
                                             hc:IconElement.Geometry="{StaticResource GearGeometry}"/>
+                                            
                                 </Grid>
                             </Grid>
 
@@ -650,7 +651,7 @@
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
                                           Grid.Column="0" Grid.Row="1" Margin="0,0,5,0" Tag="ClearWeather"/>
                             </Grid>
-
+                            
                             <Grid Grid.Row="1" Margin="0,0,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

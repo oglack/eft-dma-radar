@@ -108,6 +108,9 @@ namespace arena_dma_radar.Arena.Features
 
         public static void RemoveAimbotChams(Player player, LocalGameWorld game, bool revertToNormalChams = true)
         {
+            if (!ChamsConfig.Enabled || player == null || !player.IsActive || !player.IsAlive)
+                return;
+
             try
             {
                 var state = GetState(player.Base);
@@ -149,6 +152,9 @@ namespace arena_dma_radar.Arena.Features
         {
             try
             {
+                if (!ChamsConfig.Enabled)
+                    return;
+
                 var state = GetState(player.Base);
                 if (state?.HasDeathMaterialApplied == true)
                     return;
@@ -194,6 +200,8 @@ namespace arena_dma_radar.Arena.Features
 
         public static void Reset()
         {
+            ChamsManager.MaterialsUpdated -= OnMaterialsUpdated;
+
             _playerStates.Clear();
             _cachedMaterials.Clear();
             _playerDeathTimes.Clear();
@@ -203,7 +211,27 @@ namespace arena_dma_radar.Arena.Features
         {
             LoadCache();
             ApplyConfiguredColors();
+
+            ChamsManager.MaterialsUpdated += OnMaterialsUpdated;
+
             LoneLogging.WriteLine("[Player Chams] Manager initialized");
+        }
+
+        private static void OnMaterialsUpdated()
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(200);
+                    ApplyConfiguredColors();
+                    LoneLogging.WriteLine("[Player Chams] Applied colors after materials update");
+                }
+                catch (Exception ex)
+                {
+                    LoneLogging.WriteLine($"[Player Chams] Error applying colors after materials update: {ex.Message}");
+                }
+            });
         }
 
         #endregion

@@ -1,4 +1,5 @@
 ﻿using SkiaSharp;
+using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
 using System.Numerics;
 
@@ -33,5 +34,6 @@ namespace eft_dma_shared.Common.Maps
         /// <param name="localPlayerMapPos"></param>
         /// <returns></returns>
         LoneMapParams GetParameters(SKGLElement element, int zoom, ref Vector2 localPlayerMapPos);
+        LoneMapParams GetParametersE(SKSize control, float zoom, ref Vector2 localPlayerMapPos);
     }
 }

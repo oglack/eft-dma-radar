@@ -1,8 +1,8 @@
 ﻿using arena_dma_radar.Arena.ArenaPlayer.Plugins;
+using arena_dma_radar.Arena.ArenaPlayer.SpecialCollections;
 using arena_dma_radar.Arena.Features;
 using arena_dma_radar.Arena.Features.MemoryWrites;
 using arena_dma_radar.Arena.GameWorld;
-using arena_dma_radar.Arena.ArenaPlayer.SpecialCollections;
 using arena_dma_radar.UI.ESP;
 using arena_dma_radar.UI.Misc;
 using arena_dma_radar.UI.Radar;
@@ -18,6 +18,7 @@ using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.Collections;
 using eft_dma_shared.Common.Unity.LowLevel;
+using System;
 
 namespace arena_dma_radar.Arena.ArenaPlayer
 {
@@ -188,13 +189,9 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                     _isAimbotLocked = value;
 
                     if (value && Memory.Game is LocalGameWorld game)
-                    {
                         PlayerChamsManager.ApplyAimbotChams(this, game);
-                    }
                     else if (!value && Memory.Game is LocalGameWorld game2)
-                    {
                         PlayerChamsManager.RemoveAimbotChams(this, game2, true);
-                    }
                 }
             }
         }
@@ -291,6 +288,10 @@ namespace arena_dma_radar.Arena.ArenaPlayer
         /// Player is hostile and alive/active.
         /// </summary>
         public bool IsHostileActive => IsHostile && IsActive && IsAlive;
+        /// <summary>
+        /// Player is friendly and alive/active.
+        /// </summary>
+        public bool IsFriendlyActive => IsFriendly && IsActive && IsAlive;
         /// <summary>
         /// Player is human-controlled, hostile, and Active/Alive.
         /// </summary>
@@ -415,7 +416,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
         /// <param name="corpse">Corpse address.</param>
         public void SetDead(ulong corpse)
         {
-            if (Memory.Game is LocalGameWorld game)
+            if (Memory.Game is LocalGameWorld game && Config.ChamsConfig.Enabled)
                 PlayerChamsManager.ApplyDeathMaterial(this, game);
 
             Corpse = corpse;
@@ -650,7 +651,9 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                         rightSideInfo.Add($"{observedPlayer.HealthStatus.GetDescription()}");
                     if (typeSettings.ShowLevel && observedPlayer.Profile?.Level is int playerLevel)
                         rightSideInfo.Add($"L: {playerLevel}");
-
+                    if (typeSettings.ShowKD && observedPlayer.Profile?.Overall_KD is float kd)
+                        if (kd >= typeSettings.MinKD)
+                            rightSideInfo.Add(kd.ToString("n2"));
                     if (typeSettings.ShowADS && IsAiming)
                         rightSideInfo.Add("ADS");
                     if (typeSettings.ShowWeapon && observedPlayer.Hands?.CurrentItem != null)
@@ -665,7 +668,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                 DrawPlayerText(canvas, point, nameText, distanceText, heightText, rightSideInfo);
 
                 if (typeSettings.ShowHeight && typeSettings.HeightIndicator)
-                    DrawAlternateHeightIndicator(canvas, point, height, GetPaints(null));
+                    DrawAlternateHeightIndicator(canvas, point, height, GetPaints());
             }
             catch (Exception ex)
             {
@@ -703,7 +706,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                                       string nameText, string distanceText,
                                       string heightText, List<string> rightSideInfo)
         {
-            var paints = GetPaints(null);
+            var paints = GetPaints();
 
             if (MainWindow.MouseoverGroup is int teamID && teamID == TeamID)
                 paints.Item2 = SKPaints.TextMouseoverGroup;
@@ -767,7 +770,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
         private void DrawPlayerMarker(SKCanvas canvas, ILocalPlayer localPlayer, SKPoint point, PlayerTypeSettings typeSettings)
         {
             var radians = MapRotation.ToRadians();
-            var paints = GetPaints(null);
+            var paints = GetPaints();
 
             if (this != localPlayer && MainWindow.MouseoverGroup is int grp && grp == TeamID)
                 paints.Item1 = SKPaints.PaintMouseoverGroup;
@@ -780,8 +783,8 @@ namespace arena_dma_radar.Arena.ArenaPlayer
 
             var aimlineLength = typeSettings.AimlineLength;
 
-            ///if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
-            ///    aimlineLength = 9999;
+            if (typeSettings.HighAlert && !IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
+                aimlineLength = 9999;
 
             var aimlineEnd = GetAimlineEndpoint(point, radians, aimlineLength);
             canvas.DrawLine(point, aimlineEnd, SKPaints.ShapeOutline);
@@ -818,7 +821,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                 PlayerChamsManager.ApplyAimbotChams(this, game);
         }
 
-        private ValueTuple<SKPaint, SKPaint> GetPaints(LocalGameWorld game)
+        private ValueTuple<SKPaint, SKPaint> GetPaints()
         {
             if (IsAimbotLocked)
                 return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintAimbotLocked, SKPaints.TextAimbotLocked);
@@ -871,6 +874,8 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                         : $" ({observed.HealthStatus.GetDescription()})"; // Only display abnormal health status
 
                 lines.Add($"{name}{health}");
+                if (observed.Profile?.Overall_KD is float kdResult)
+                    lines.Add($"KD: {kdResult.ToString("n2")}");
                 var hands = $"{observed.Hands?.CurrentItem} {observed.Hands?.CurrentAmmo}".Trim();
                 lines.Add($"Use: {(hands is null ? "--" : hands)}");
 
@@ -938,6 +943,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
             var showDist = espTypeSettings.ShowDistance;
             var showHealth = espTypeSettings.ShowHealth;
             var showName = espTypeSettings.ShowName;
+            var showKD = espTypeSettings.ShowKD;
             var showWep = espTypeSettings.ShowWeapon && observedPlayer?.Hands?.CurrentItem != null;
             var showAmmo = espTypeSettings.ShowAmmoType && observedPlayer?.Hands?.CurrentAmmo != null;
             var showBomb = espTypeSettings.ShowBomb && observedPlayer?.Gear?.HasBomb == true;
@@ -980,7 +986,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
             {
                 if (showADS)
                 {
-                    SKPoint adsPos = new SKPoint(headPosition.X, currentY);
+                    var adsPos = new SKPoint(headPosition.X, currentY);
                     canvas.DrawText("ADS", adsPos, espPaints.Item2);
                     currentY -= lineHeight;
                 }
@@ -1002,7 +1008,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                 canvas.DrawText(Name, namePos, espPaints.Item2);
             }
 
-            if (showDist || showWep || showAmmo)
+            if (showDist || showWep || showAmmo || showKD)
             {
                 var lines = new List<string>();
 
@@ -1022,6 +1028,10 @@ namespace arena_dma_radar.Arena.ArenaPlayer
 
                     if (weaponAmmoText != null)
                         lines.Add(weaponAmmoText);
+
+                    if (showKD && observedPlayer != null && observedPlayer.Profile?.Overall_KD is float kd)
+                        if (kd >= espTypeSettings.MinKD)
+                            lines.Add(kd.ToString("n2"));
                 }
 
                 if (lines.Any())
@@ -1042,7 +1052,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                         return;
                     if (!CameraManagerBase.WorldToScreen(ref playerPos, out var playerScreen))
                         return;
-                    canvas.DrawLine(fpScreen, playerScreen, SKPaints.PaintBasicESP);
+                    canvas.DrawLine(fpScreen, playerScreen, SKPaints.PaintAimbotLockedLineESP);
                 }
             }
         }
@@ -1135,6 +1145,39 @@ namespace arena_dma_radar.Arena.ArenaPlayer
                     return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintStreamerESP, SKPaints.TextStreamerESP);
                 default:
                     return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintUSECESP, SKPaints.TextUSECESP);
+            }
+        }
+
+        // <summary>
+        // Gets mini radar paint brush based on this Player Type.
+        // </summary>
+        public SKPaint GetMiniRadarPaint()
+        {
+            if (IsAimbotLocked)
+                return SKPaints.PaintMiniAimbotLocked;
+
+            if (IsFocused)
+                return SKPaints.PaintMiniFocused;
+
+            if (this is LocalPlayer)
+                return SKPaints.PaintMiniLocalPlayer;
+
+            switch (Type)
+            {
+                case PlayerType.Teammate:
+                    return SKPaints.PaintMiniTeammate;
+                case PlayerType.USEC:
+                    return SKPaints.PaintMiniUSEC;
+                case PlayerType.BEAR:
+                    return SKPaints.PaintMiniBEAR;
+                case PlayerType.AI:
+                    return SKPaints.PaintMiniAI;
+                case PlayerType.SpecialPlayer:
+                    return SKPaints.PaintMiniSpecial;
+                case PlayerType.Streamer:
+                    return SKPaints.PaintMiniStreamer;
+                default:
+                    return SKPaints.PaintMiniUSEC;
             }
         }
 
@@ -1239,7 +1282,7 @@ namespace arena_dma_radar.Arena.ArenaPlayer
             /// <summary>
             /// 'Special' Human Controlled Hostile PMC/Scav (on the watchlist, or a special account type).
             /// </summary>
-            [Description("Special")]
+            [Description("Special Player")]
             SpecialPlayer
         }
 

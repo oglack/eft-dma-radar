@@ -23,6 +23,7 @@ using static arena_dma_radar.Arena.ArenaPlayer.Player;
 using UserControl = System.Windows.Controls.UserControl;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 
 namespace arena_dma_radar.UI.Pages
 {
@@ -255,7 +256,7 @@ namespace arena_dma_radar.UI.Pages
             {
                 try
                 {
-                    if (HandyControl.Controls.MessageBox.Show(
+                    if (MessageBox.Show(
                         $"Add player '{selectedEntry.Name}' to the watchlist?",
                         "Confirm",
                         MessageBoxButton.YesNo,

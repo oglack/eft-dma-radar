@@ -82,6 +82,11 @@ namespace eft_dma_radar.UI.Pages
         private bool _isLoadingFuserPlayerSettings = false;
         private bool _isLoadingFuserEntitySettings = false;
 
+        private readonly string[] _availableWidgets = new string[]
+        {
+            "Quest Info Widget"
+        };
+
         private readonly string[] _availableFuserOptions = new string[]
         {
             "Fireport Aim",
@@ -91,7 +96,9 @@ namespace eft_dma_radar.UI.Pages
             "Status Text",
             "FPS",
             "Energy/Hydration Bar",
-            "Magazine Info"
+            "Magazine Info",
+            "Closest Player",
+            "Top Loot"
         };
 
         private readonly string[] _availableFuserPlayerInformation = new string[]
@@ -101,6 +108,7 @@ namespace eft_dma_radar.UI.Pages
             "Distance",
             "Health",
             "Name",
+            "KD",
             "Night Vision",
             "Thermal",
             "UBGL",
@@ -132,6 +140,7 @@ namespace eft_dma_radar.UI.Pages
                     expChamsGeneralSettings,
                     expFuserGeneralSettings,
                     expFuserCrosshairSettings,
+                    expFuserMiniRadarSettings,
                     expFuserPlayerInformation,
                     expFuserEntityInformation);
 
@@ -184,6 +193,7 @@ namespace eft_dma_radar.UI.Pages
                 {
                     try
                     {
+                        await Task.Delay(1500);
                         await ApplyAllChamsColorsAsync();
                     }
                     catch (Exception ex)
@@ -276,6 +286,7 @@ namespace eft_dma_radar.UI.Pages
             SetSelectedEntityType();
             UpdateEntityChamsSettings();
             UpdateChamsMaterialStatus();
+            UpdateAdvancedMemWritesWarning();
         }
 
         private void RegisterChamsEvents()
@@ -440,6 +451,7 @@ namespace eft_dma_radar.UI.Pages
             btnClearChamsCache.IsEnabled = controlEnabled && advMemWrites && !_isRefreshingChamsMaterials;
 
             ToggleChamsColorControls();
+            UpdateAdvancedMemWritesWarning();
         }
 
         private void ToggleChamsColorControls()
@@ -694,9 +706,12 @@ namespace eft_dma_radar.UI.Pages
             return confirmed ? resultBrush : null;
         }
 
+
         private void UpdateChamsColor(string tag, SolidColorBrush brush)
         {
             var hex = brush.Color.ToString();
+            var colorForBackground = brush.Color;
+
             var materialColorSettings = Config.ChamsConfig.GetMaterialColorSettings(_selectedEntityType, _selectedColorMaterialType);
             var isVisible = tag.Contains("VisibleColor");
 
@@ -707,7 +722,19 @@ namespace eft_dma_radar.UI.Pages
 
             Config.Save();
             PlayerPreviewControl.RefreshPreview();
-            ApplyChamsColorToMaterials(isVisible, brush.Color, _selectedColorMaterialType);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(100);
+                    ApplyChamsColorToMaterials(isVisible, colorForBackground, _selectedColorMaterialType);
+                }
+                catch (Exception ex)
+                {
+                    LoneLogging.WriteLine($"[ESP Control] Error applying color to materials: {ex.Message}");
+                }
+            });
         }
 
         private void ApplyChamsColorToMaterials(bool isVisible, Color color, ChamsMode specificMaterialMode)
@@ -847,6 +874,12 @@ namespace eft_dma_radar.UI.Pages
                 {
                     try
                     {
+                        if (!Config.ChamsConfig.Enabled || !MemWrites.Enabled || ChamsManager.Materials.Count == 0)
+                        {
+                            LoneLogging.WriteLine("[ESP Control] Skipping color application - chams disabled or no materials loaded");
+                            return;
+                        }
+
                         LoneLogging.WriteLine("[ESP Control] Applying all chams colors in background...");
 
                         ApplyAllConfiguredMaterialColors();
@@ -951,6 +984,22 @@ namespace eft_dma_radar.UI.Pages
             txtChamsMaterialStatus.Foreground = new SolidColorBrush(statusColor);
         }
 
+        private void UpdateAdvancedMemWritesWarning()
+        {
+            var advancedEnabled = Config.MemWrites.AdvancedMemWrites;
+            var chamsEnabled = Config.ChamsConfig.Enabled;
+
+            var showWarning = chamsEnabled && !advancedEnabled;
+            txtAdvancedMemWritesWarning.Visibility = showWarning ? Visibility.Visible : Visibility.Collapsed;
+
+            if (showWarning)
+            {
+                txtChamsMaterialStatus.Text = "Limited Mode";
+                txtChamsMaterialStatus.Foreground = new SolidColorBrush(Colors.Orange);
+                txtChamsMaterialCount.Text = "Basic/Visible only";
+            }
+        }
+
         private async void btnRefreshChamsMaterials_Click(object sender, RoutedEventArgs e)
         {
             if (_isRefreshingChamsMaterials)
@@ -1042,6 +1091,23 @@ namespace eft_dma_radar.UI.Pages
                 {
                     LoneLogging.WriteLine("[CHAMS REFRESH] Refresh failed - no materials recovered");
                     NotificationsShared.Error("[CHAMS] Refresh failed. Check logs for details.");
+                }
+
+                if (finalStatus.IsComplete || finalStatus.LoadedCount > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(500);
+                            await ApplyAllChamsColorsAsync();
+                            LoneLogging.WriteLine("[ESP Control] Applied colors after material refresh");
+                        }
+                        catch (Exception ex)
+                        {
+                            LoneLogging.WriteLine($"[ESP Control] Error applying colors after material refresh: {ex.Message}");
+                        }
+                    });
                 }
             }
             catch (Exception ex)
@@ -1138,6 +1204,7 @@ namespace eft_dma_radar.UI.Pages
                     {
                         try
                         {
+                            await Task.Delay(1000);
                             await ApplyAllChamsColorsAsync();
                         }
                         catch (Exception ex)
@@ -1188,6 +1255,7 @@ namespace eft_dma_radar.UI.Pages
                     Config.MemWrites.Chams.Enabled = value;
                     MemWriteFeature<Chams>.Instance.Enabled = value;
                     ToggleChamsControls();
+                    UpdateAdvancedMemWritesWarning();
                     break;
 
                 case "EntityEnabled":
@@ -1267,6 +1335,7 @@ namespace eft_dma_radar.UI.Pages
             chkAutoFullscreen.Unchecked += FuserCheckbox_Checked;
             sldrFuserFontScale.ValueChanged += FuserSlider_ValueChanged;
             sldrFuserLineScale.ValueChanged += FuserSlider_ValueChanged;
+            ccbWidgets.SelectionChanged += widgetsCheckComboBox_SelectionChanged;
             ccbESPOptions.SelectionChanged += espOptionsCheckComboBox_SelectionChanged;
 
             // Crosshair Settings
@@ -1274,6 +1343,13 @@ namespace eft_dma_radar.UI.Pages
             chkCrosshairEnabled.Unchecked += FuserCheckbox_Checked;
             cboCrosshairType.SelectionChanged += FuserComboBox_SelectionChanged;
             sldrFuserCrosshairScale.ValueChanged += FuserSlider_ValueChanged;
+
+            // Mini Radar Settings
+            chkMiniRadarEnabled.Checked += FuserCheckbox_Checked;
+            chkMiniRadarEnabled.Unchecked += FuserCheckbox_Checked;
+            chkMiniRadarLoot.Checked += FuserCheckbox_Checked;
+            chkMiniRadarLoot.Unchecked += FuserCheckbox_Checked;
+            sldrFuserMiniRadarScale.ValueChanged += FuserSlider_ValueChanged;
 
             // Player Information
             cboFuserPlayerType.SelectionChanged += cboFuserPlayerType_SelectionChanged;
@@ -1284,6 +1360,7 @@ namespace eft_dma_radar.UI.Pages
             sldrPlayerTypeRenderDistance.ValueChanged += FuserSlider_ValueChanged;
             cboPlayerRenderMode.SelectionChanged += FuserComboBox_SelectionChanged;
             ccbFuserPlayerInformation.SelectionChanged += espPlayerInfoCheckComboBox_SelectionChanged;
+            sldrMinimumKD.ValueChanged += FuserSlider_ValueChanged;
 
             // Entity Information
             cboFuserEntityType.SelectionChanged += cboFuserEntityType_SelectionChanged;
@@ -1317,6 +1394,12 @@ namespace eft_dma_radar.UI.Pages
             cboCrosshairType.SelectedIndex = cfg.Crosshair.Type;
             sldrFuserCrosshairScale.Value = cfg.Crosshair.Scale;
             sldrFuserCrosshairScale.IsEnabled = crosshairEnabled;
+
+            // Mini Radar
+            chkMiniRadarEnabled.IsChecked = cfg.MiniRadar.Enabled;
+            chkMiniRadarLoot.IsChecked = cfg.MiniRadar.ShowLoot;
+            sldrFuserMiniRadarScale.Value = cfg.MiniRadar.Scale;
+            ToggleMiniRadarControls();
 
             // Player Type Settings
             InitializeFuserPlayerTypeSettings();
@@ -1393,6 +1476,8 @@ namespace eft_dma_radar.UI.Pages
                 chkImportantIndicators.IsChecked = settings.ImportantIndicator;
                 sldrPlayerTypeRenderDistance.Value = settings.RenderDistance;
 
+                sldrMinimumKD.Value = settings.MinKD;
+
                 foreach (CheckComboBoxItem item in ccbFuserPlayerInformation.Items)
                 {
                     var info = item.Content.ToString();
@@ -1412,6 +1497,30 @@ namespace eft_dma_radar.UI.Pages
             {
                 _isLoadingFuserPlayerSettings = false;
             }
+
+            UpdatePlayerInformationControlsVisibility();
+        }
+
+        private void UpdatePlayerInformationControlsVisibility()
+        {
+            if (_isLoadingFuserPlayerSettings)
+                return;
+
+            kdSettings.Visibility = Visibility.Collapsed;
+
+            var showKD = false;
+            foreach (CheckComboBoxItem item in ccbFuserPlayerInformation.SelectedItems)
+            {
+                var info = item.Content.ToString();
+                if (info == "KD")
+                {
+                    showKD = true;
+                    break;
+                }
+            }
+
+            if (showKD)
+                kdSettings.Visibility = Visibility.Visible;
         }
 
         private void SaveFuserPlayerTypeSettings(string playerType)
@@ -1424,6 +1533,7 @@ namespace eft_dma_radar.UI.Pages
             settings.HighAlert = chkHighAlert.IsChecked == true;
             settings.ImportantIndicator = chkImportantIndicators.IsChecked == true;
             settings.RenderDistance = (int)sldrPlayerTypeRenderDistance.Value;
+            settings.MinKD = (float)sldrMinimumKD.Value;
 
             foreach (CheckComboBoxItem item in ccbFuserPlayerInformation.SelectedItems)
             {
@@ -1461,7 +1571,8 @@ namespace eft_dma_radar.UI.Pages
                 new ComboBoxItem { Content = "Grenade", Tag = "Grenade" },
                 new ComboBoxItem { Content = "Tripwire", Tag = "Tripwire" },
                 new ComboBoxItem { Content = "Mine", Tag = "Mine" },
-                new ComboBoxItem { Content = "Mortar Projectile", Tag = "MortarProjectile" }
+                new ComboBoxItem { Content = "Mortar Projectile", Tag = "MortarProjectile" },
+                new ComboBoxItem { Content = "Airdrop", Tag = "Airdrop" }
             };
 
             entityTypeItems.Sort((x, y) => string.Compare(x.Content.ToString(), y.Content.ToString()));
@@ -1602,18 +1713,40 @@ namespace eft_dma_radar.UI.Pages
 
             try
             {
-                ccbESPOptions.Items.Clear();
+                ccbWidgets.Items.Clear();
+                foreach (var widget in _availableWidgets)
+                {
+                    ccbWidgets.Items.Add(new CheckComboBoxItem { Content = widget });
+                }
 
+                ccbESPOptions.Items.Clear();
                 foreach (var option in _availableFuserOptions)
                 {
                     ccbESPOptions.Items.Add(new CheckComboBoxItem { Content = option });
                 }
 
+                UpdateWidgetOptionSelections();
                 UpdateESPOptionsSelections();
             }
             finally
             {
                 _isLoadingFuserOptionSettings = false;
+            }
+        }
+
+        private void UpdateWidgetOptionSelections()
+        {
+            var optionsToUpdate = new Dictionary<string, bool>
+            {
+                ["Quest Info Widget"] = Config.ESP.ShowQuestInfoWidget
+            };
+
+            foreach (CheckComboBoxItem item in ccbWidgets.Items)
+            {
+                var content = item.Content.ToString();
+
+                if (optionsToUpdate.TryGetValue(content, out bool shouldBeSelected))
+                    item.IsSelected = shouldBeSelected;
             }
         }
 
@@ -1636,11 +1769,31 @@ namespace eft_dma_radar.UI.Pages
                     "FPS" => cfg.ShowFPS,
                     "Energy/Hydration Bar" => cfg.EnergyHydrationBar,
                     "Magazine Info" => cfg.ShowMagazine,
+                    "Closest Player" => cfg.ShowClosestPlayer,
+                    "Top Loot" => cfg.ShowTopLoot,
                     _ => false
                 };
 
                 item.IsSelected = isSelected;
             }
+        }
+
+        public void UpdateSpecificWidgetOption(string widgetName, bool isSelected)
+        {
+            if (_isLoadingFuserOptionSettings)
+                return;
+
+            foreach (CheckComboBoxItem item in ccbWidgets.Items)
+            {
+                if (item.Content.ToString() == widgetName)
+                {
+                    item.IsSelected = isSelected;
+                    break;
+                }
+            }
+
+            Config.Save();
+            LoneLogging.WriteLine($"Updated widget option: {widgetName} = {isSelected}");
         }
 
         /// <summary>
@@ -1669,6 +1822,7 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextMedsESP.TextSize = 12f * fontScale;
             SKPaints.TextBackpackESP.TextSize = 12f * fontScale;
             SKPaints.TextQuestItemESP.TextSize = 12f * fontScale;
+            SKPaints.TextAirdropESP.TextSize = 12f * fontScale;
             SKPaints.TextWishlistItemESP.TextSize = 12f * fontScale;
             SKPaints.TextQuestHelperESP.TextSize = 12f * fontScale;
             SKPaints.TextExfilOpenESP.TextSize = 12f * fontScale;
@@ -1680,7 +1834,6 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextMagazineInfoESP.TextSize = 16f * fontScale;
             SKPaints.TextBasicESP.TextSize = 12f * fontScale;
             SKPaints.TextBasicESPLeftAligned.TextSize = 12f * fontScale;
-            SKPaints.TextBasicESPRightAligned.TextSize = 12f * fontScale;
             SKPaints.TextStatusSmallEsp.TextSize = 13f * fontScale;
             SKPaints.TextExplosiveESP.TextSize = 13f * fontScale;
             SKPaints.TextSwitchesESP.TextSize = 12f * fontScale;
@@ -1691,6 +1844,18 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextDoorBreachingESP.TextSize = 12f * fontScale;
             SKPaints.TextPulsingAsteriskESP.TextSize = 18f * fontScale;
             SKPaints.TextPulsingAsteriskOutlineESP.TextSize = 18f * fontScale;
+            SKPaints.TextESPFPS.TextSize = 12f * fontScale;
+            SKPaints.TextESPRaidStats.TextSize = 12f * fontScale;
+            SKPaints.TextESPStatusText.TextSize = 13f * fontScale;
+            SKPaints.TextESPClosestPlayer.TextSize = 13f * fontScale;
+            SKPaints.TextESPTopLoot.TextSize = 13f * fontScale;
+            SKPaints.TextEnergyHydrationBarESP.TextSize = 12f * fontScale;
+            SKPaints.TextEnergyHydrationBarOutlineESP.TextSize = 12f * fontScale;
+            SKPaints.TextEnergyHydrationBarOutlineESP.StrokeWidth = 1.5f * fontScale;
+
+            var espWindow = ESPForm.Window;
+            espWindow?.ESPQuestInfo?.SetScaleFactor(fontScale);
+            espWindow?.OnRenderContextChanged();
         }
 
         /// <summary>
@@ -1722,6 +1887,7 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.PaintMedsESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintBackpackESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintQuestItemESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintAirdropESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintWishlistItemESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintQuestHelperESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintExplosiveESP.StrokeWidth = 1f * lineScale;
@@ -1739,6 +1905,46 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.PaintDoorLockedESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintDoorInteractingESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintDoorBreachingESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintEnergyFillESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintHydrationFillESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintEnergyHydrationBackgroundESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintFireportAimESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintAimbotFOVESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintAimbotLockedLineESP.StrokeWidth = 1f * lineScale;
+        }
+
+        /// <summary>
+        /// Scales all ESP line stroke widths based on the current line scale value
+        /// </summary>
+        private void ScaleMiniRadar()
+        {
+            var newScale = Config.ESP.MiniRadar.Scale;
+
+            #region Paints
+            SKPaints.PaintMiniLocalPlayer.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniTeammate.StrokeWidth = 3 * newScale;;
+            SKPaints.PaintMiniUSEC.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniBEAR.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniSpecial.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniStreamer.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniAimbotLocked.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniScav.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniRaider.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniBoss.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniFocused.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniPScav.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniCorpse.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniAirdrop.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniMeds.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniFood.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniBackpacks.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniQuestItem.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniWishlistItem.StrokeWidth = 3 * newScale;
+            SKPaints.MiniQuestHelperPaint.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniLoot.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniImportantLoot.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniContainerLoot.StrokeWidth = 3 * newScale;
+            #endregion
         }
 
         /// <summary>
@@ -1774,6 +1980,14 @@ namespace eft_dma_radar.UI.Pages
 
             return false;
         }
+
+        private void ToggleMiniRadarControls()
+        {
+            var enabled = Config.ESP.MiniRadar.Enabled;
+
+            chkMiniRadarLoot.IsEnabled = enabled;
+            sldrFuserMiniRadarScale.IsEnabled = enabled;
+        }
         #endregion
 
         #region Events
@@ -1792,26 +2006,12 @@ namespace eft_dma_radar.UI.Pages
                         Config.ESP.Crosshair.Enabled = value;
                         sldrFuserCrosshairScale.IsEnabled = value;
                         break;
-                    case "FuserMagazine":
-                        Config.ESP.ShowMagazine = value;
+                    case "MiniRadarEnabled":
+                        Config.ESP.MiniRadar.Enabled = value;
+                        ToggleMiniRadarControls();
                         break;
-                    case "FuserFireportAim":
-                        Config.ESP.ShowFireportAim = value;
-                        break;
-                    case "FuserAimbotFOV":
-                        Config.ESP.ShowAimFOV = value;
-                        break;
-                    case "FuserRaidStats":
-                        Config.ESP.ShowRaidStats = value;
-                        break;
-                    case "FuserAimbotLock":
-                        Config.ESP.ShowAimLock = value;
-                        break;
-                    case "FuserStatusText":
-                        Config.ESP.ShowStatusText = value;
-                        break;
-                    case "FuserFPS":
-                        Config.ESP.ShowFPS = value;
+                    case "MiniRadarLoot":
+                        Config.ESP.MiniRadar.ShowLoot = value;
                         break;
                     case "HighAlertIndicator":
                     case "ImportantIndicators":
@@ -1846,6 +2046,13 @@ namespace eft_dma_radar.UI.Pages
                     case "FuserLineScale":
                         Config.ESP.LineScale = floatValue;
                         ScaleESPLines();
+                        break;
+                    case "MinimumKD":
+                        SavePlayerTypeSettings();
+                        break;
+                    case "FuserMiniRadarScale":
+                        Config.ESP.MiniRadar.Scale = floatValue;
+                        ScaleMiniRadar();
                         break;
                     case "FuserCrosshairScale":
                         Config.ESP.Crosshair.Scale = floatValue;
@@ -1951,6 +2158,7 @@ namespace eft_dma_radar.UI.Pages
         private void espPlayerInfoCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             SavePlayerTypeSettings();
+            UpdatePlayerInformationControlsVisibility();
         }
 
         private void espEntityInfoCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1970,9 +2178,34 @@ namespace eft_dma_radar.UI.Pages
             Config.ESP.ShowStatusText = IsOptionSelected("Status Text");
             Config.ESP.ShowFPS = IsOptionSelected("FPS");
             Config.ESP.EnergyHydrationBar = IsOptionSelected("Energy/Hydration Bar");
+            Config.ESP.ShowMagazine = IsOptionSelected("Magazine Info");
+            Config.ESP.ShowClosestPlayer = IsOptionSelected("Closest Player");
+            Config.ESP.ShowTopLoot = IsOptionSelected("Top Loot");
 
             Config.Save();
             LoneLogging.WriteLine("Saved ESP option settings");
+        }
+
+        private void widgetsCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isLoadingFuserOptionSettings)
+                return;
+
+            foreach (CheckComboBoxItem item in ccbWidgets.Items)
+            {
+                var widgetOption = item.Content.ToString();
+                var isSelected = item.IsSelected;
+
+                switch (widgetOption)
+                {
+                    case "Quest Info Widget":
+                        Config.ESP.ShowQuestInfoWidget = isSelected;
+                        break;
+                }
+            }
+
+            Config.Save();
+            LoneLogging.WriteLine("Saved widget settings");
         }
         #endregion
         #endregion

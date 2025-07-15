@@ -20,6 +20,9 @@ using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.Collections;
 using eft_dma_shared.Common.Unity.LowLevel;
+using System;
+using System.Windows.Shapes;
+using static System.Windows.Forms.LinkLabel;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer
 {
@@ -243,13 +246,9 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                     _isAimbotLocked = value;
 
                     if (value && Memory.Game is LocalGameWorld game)
-                    {
                         PlayerChamsManager.ApplyAimbotChams(this, game);
-                    }
                     else if (!value && Memory.Game is LocalGameWorld game2)
-                    {
                         PlayerChamsManager.RemoveAimbotChams(this, game2, true);
-                    }
                 }
             }
         }
@@ -525,7 +524,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         /// <param name="corpse">Corpse address.</param>
         public void SetDead(ulong corpse)
         {
-            if (Memory.Game is LocalGameWorld game)
+            if (Memory.Game is LocalGameWorld game && Config.ChamsConfig.Enabled)
                 PlayerChamsManager.ApplyDeathMaterial(this, game);
 
             Corpse = corpse;
@@ -1273,7 +1272,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
                 if (!IsAlive)
                 {
-                    DrawDeathMarker(canvas, point);
+                    var corpseColor = GetCorpseFilterColor();
+                    DrawDeathMarker(canvas, point, corpseColor);
                     return;
                 }
                 
@@ -1309,7 +1309,11 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                         rightSideInfo.Add($"{observed.HealthStatus.GetDescription()}");
                     if (typeSettings.ShowLevel && observed.Profile?.Level is int playerLevel)
                         rightSideInfo.Add($"L: {playerLevel}");
+                    if (typeSettings.ShowKD && observed.Profile?.Overall_KD is float kd)
+                        if (kd >= typeSettings.MinKD)
+                            rightSideInfo.Add(kd.ToString("n2"));
                 }
+
                 if (typeSettings.ShowGroupID && GroupID != -1)
                     rightSideInfo.Add($"G:{GroupID}");
                 if (typeSettings.ShowADS && IsAiming)
@@ -1332,7 +1336,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 DrawPlayerText(canvas, point, nameText, distanceText, heightText, rightSideInfo, hasImportantItems);
 
                 if (typeSettings.ShowHeight && typeSettings.HeightIndicator)
-                    DrawAlternateHeightIndicator(canvas, point, height, GetPaints(null));
+                    DrawAlternateHeightIndicator(canvas, point, height, GetPaints());
             }
             catch (Exception ex)
             {
@@ -1341,7 +1345,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         }
 
         private void DrawAlternateHeightIndicator(SKCanvas canvas, SKPoint point, float heightDiff, ValueTuple<SKPaint, SKPaint> paints)
-        {
+        { 
             var baseX = point.X - (15.0f * MainWindow.UIScale);
             var baseY = point.Y + (3.5f * MainWindow.UIScale);
 
@@ -1371,7 +1375,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                                       string heightText, List<string> rightSideInfo,
                                       bool hasImportantItems)
         {
-            var paints = GetPaints(null);
+            var paints = GetPaints();
 
             if (MainWindow.MouseoverGroup is int grp && grp == GroupID)
                 paints.Item2 = SKPaints.TextMouseoverGroup;
@@ -1460,7 +1464,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         private void DrawPlayerMarker(SKCanvas canvas, ILocalPlayer localPlayer, SKPoint point, PlayerTypeSettings typeSettings)
         {
             var radians = MapRotation.ToRadians();
-            var paints = GetPaints(null);
+            var paints = GetPaints();
 
             if (this != localPlayer && MainWindow.MouseoverGroup is int grp && grp == GroupID)
                 paints.Item1 = SKPaints.PaintMouseoverGroup;
@@ -1473,8 +1477,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
             var aimlineLength = typeSettings.AimlineLength;
 
-            ///if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
-            ///    aimlineLength = 9999;
+            if (typeSettings.HighAlert && !IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
+                aimlineLength = 9999;
 
             var aimlineEnd = GetAimlineEndpoint(point, radians, aimlineLength);
             canvas.DrawLine(point, aimlineEnd, SKPaints.ShapeOutline);
@@ -1485,13 +1489,22 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         /// Draws a Death Marker on this location.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void DrawDeathMarker(SKCanvas canvas, SKPoint point)
+        private static void DrawDeathMarker(SKCanvas canvas, SKPoint point, SKColor color)
         {
             var length = 6 * MainWindow.UIScale;
+
+            using var corpseLinePaint = new SKPaint
+            {
+                Color = color,
+                StrokeWidth = SKPaints.PaintDeathMarker.StrokeWidth,
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke
+            };
+
             canvas.DrawLine(new SKPoint(point.X - length, point.Y + length),
-                new SKPoint(point.X + length, point.Y - length), SKPaints.PaintDeathMarker);
+                new SKPoint(point.X + length, point.Y - length), corpseLinePaint);
             canvas.DrawLine(new SKPoint(point.X - length, point.Y - length),
-                new SKPoint(point.X + length, point.Y + length), SKPaints.PaintDeathMarker);
+                new SKPoint(point.X + length, point.Y + length), corpseLinePaint);
         }
 
         /// <summary>
@@ -1505,13 +1518,32 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 start.Y + MathF.Sin(radians) * aimlineLength);
         }
 
-        private void ApplyAimbotChams()
+        private SKColor GetCorpseFilterColor()
         {
-            if (Memory.Game is LocalGameWorld game)
-                PlayerChamsManager.ApplyAimbotChams(this, game);
+            if (LootObject?.Loot != null)
+            {
+                foreach (var item in LootObject.Loot.OrderByDescending(x => x.IsImportant))
+                {
+                    var matchedFilter = item.MatchedFilter;
+                    if (matchedFilter != null && !string.IsNullOrEmpty(matchedFilter.Color))
+                    {
+                        if (SKColor.TryParse(matchedFilter.Color, out var filterColor))
+                            return filterColor;
+                    }
+
+                    if (item.IsWishlisted)
+                        return SKPaints.PaintWishlistItem.Color;
+                    if (item is QuestItem || (Config.QuestHelper.Enabled && item.IsQuestCondition))
+                        return SKPaints.PaintQuestItem.Color;
+                    if (item.IsValuableLoot)
+                        return SKPaints.PaintImportantLoot.Color;
+                }
+            }
+
+            return SKPaints.PaintDeathMarker.Color;
         }
 
-        private ValueTuple<SKPaint, SKPaint> GetPaints(LocalGameWorld game)
+        public ValueTuple<SKPaint, SKPaint> GetPaints()
         {
             if (IsAimbotLocked)
                 return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintAimbotLocked, SKPaints.TextAimbotLocked);
@@ -1558,11 +1590,17 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             var lines = new List<string>();
             var name = Config.MaskNames && IsHuman ? "<Hidden>" : Name;
             string health = null;
+            string kd = null;
             
             if (this is ObservedPlayer observed)
+            {
                 health = observed.HealthStatus is Enums.ETagStatus.Healthy
                     ? null
                     : $" ({observed.HealthStatus.GetDescription()})"; // Only display abnormal health status
+
+                if (observed.Profile?.Overall_KD is float kdResult)
+                    kd = kdResult.ToString("n2");
+            }
 
             if (IsStreaming) // Streamer Notice
                 lines.Add($"[LIVE - Double Click]");
@@ -1575,6 +1613,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             if (IsHostileActive) // Enemy Players, display information
             {
                 lines.Add($"{name}{health}");
+                lines.Add($"KD: {kd}");
                 var gear = Gear;
                 var hands = $"{Hands?.CurrentItem} {Hands?.CurrentAmmo}".Trim();
                 lines.Add($"Use: {(hands is null ? "--" : hands)}");
@@ -1653,6 +1692,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             var showDist = espTypeSettings.ShowDistance;
             var showHealth = espTypeSettings.ShowHealth;
             var showName = espTypeSettings.ShowName;
+            var showKD = espTypeSettings.ShowKD;
             var showNVG = espTypeSettings.ShowNVG && Gear?.HasNVG == true;
             var showThermal = espTypeSettings.ShowThermal && Gear?.HasThermal == true;
             var showUBGL = espTypeSettings.ShowUBGL && Gear?.HasUBGL == true;
@@ -1760,7 +1800,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
             if (showADS && observedPlayer != null)
             {
-                SKPoint adsPos = new SKPoint(headPosition.X, currentY);
+                var adsPos = new SKPoint(headPosition.X, currentY);
                 canvas.DrawText("ADS", adsPos, espPaints.Item2);
                 currentY -= lineHeight;
             }
@@ -1786,7 +1826,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             if (showHealth && observedPlayer != null)
                 DrawHealthBar(canvas, observedPlayer, playerBox.Value);
 
-            if (showDist || showWep || showAmmo || showNVG || showThermal || showUBGL)
+            if (showDist || showWep || showAmmo || showNVG || showThermal || showUBGL || showKD)
             {
                 var lines = new List<string>();
 
@@ -1805,6 +1845,10 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 if (weaponAmmoText != null)
                     lines.Add(weaponAmmoText);
 
+                if (showKD && observedPlayer != null && observedPlayer.Profile?.Overall_KD is float kd)
+                    if (kd >= espTypeSettings.MinKD)
+                        lines.Add(kd.ToString("n2"));
+                
                 if (showNVG)
                     lines.Add("NVG");
 
@@ -1832,7 +1876,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                         return;
                     if (!CameraManagerBase.WorldToScreen(ref playerPos, out var playerScreen))
                         return;
-                    canvas.DrawLine(fpScreen, playerScreen, SKPaints.PaintBasicESP);
+                    canvas.DrawLine(fpScreen, playerScreen, SKPaints.PaintAimbotLockedLineESP);
                 }
             }
         }
@@ -1934,6 +1978,45 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             }
         }
 
+        // <summary>
+        // Gets mini radar paint brush based on this Player Type.
+        // </summary>
+        public SKPaint GetMiniRadarPaint()
+        {
+            if (IsAimbotLocked)
+                return SKPaints.PaintMiniAimbotLocked;
+
+            if (IsFocused)
+                return SKPaints.PaintMiniFocused;
+
+            if (this is LocalPlayer)
+                return SKPaints.PaintMiniLocalPlayer;
+
+            switch (Type)
+            {
+                case PlayerType.Teammate:
+                    return SKPaints.PaintMiniTeammate;
+                case PlayerType.USEC:
+                    return SKPaints.PaintMiniUSEC;
+                case PlayerType.BEAR:
+                    return SKPaints.PaintMiniBEAR;
+                case PlayerType.AIScav:
+                    return SKPaints.PaintMiniScav;
+                case PlayerType.AIRaider:
+                    return SKPaints.PaintMiniRaider;
+                case PlayerType.AIBoss:
+                    return SKPaints.PaintMiniBoss;
+                case PlayerType.PScav:
+                    return SKPaints.PaintMiniPScav;
+                case PlayerType.SpecialPlayer:
+                    return SKPaints.PaintMiniSpecial;
+                case PlayerType.Streamer:
+                    return SKPaints.PaintMiniStreamer;
+                default:
+                    return SKPaints.PaintMiniUSEC;
+            }
+        }
+
         /// <summary>
         /// Determine player type key for settings lookup
         /// </summary>
@@ -2003,7 +2086,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             /// <summary>
             /// 'Special' Human Controlled Hostile PMC/Scav (on the watchlist, or a special account type).
             /// </summary>
-            [Description("Special")]
+            [Description("Special Player")]
             SpecialPlayer,
             /// <summary>
             /// Human Controlled Hostile PMC/Scav that has a Twitch account name as their IGN.

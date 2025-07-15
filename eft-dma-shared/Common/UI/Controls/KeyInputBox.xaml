@@ -27,11 +27,19 @@
                         <Setter Property="BorderBrush" Value="{DynamicResource SecondaryBorderBrush}" />
                     </Trigger>
 
-                    <!-- Focus -->
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsFocused}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource RegionBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+                    </DataTrigger>
+
                     <DataTrigger Binding="{Binding ElementName=HiddenTextBox, Path=IsFocused}" Value="True">
                         <Setter Property="Background" Value="{DynamicResource RegionBrush}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource SecondaryBorderBrush}" />
-                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsCapturing}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource RegionBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>

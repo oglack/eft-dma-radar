@@ -19,6 +19,16 @@ namespace arena_dma_radar.UI
         ContainerLoot,
         RefillContainer,
         Explosives,
+        FPS,
+        RaidStats,
+        StatusText,
+        MagazineInfo,
+        Crosshair,
+        FireportAim,
+        AimbotFOV,
+        AimbotLock,
+        ClosestPlayer,
+        MiniRadarTheme
     }
 
     internal static class EspColorOptions
@@ -57,6 +67,16 @@ namespace arena_dma_radar.UI
                 [EspColorOption.ContainerLoot] = SKColor.Parse("FFFFCC").ToString(),
                 [EspColorOption.RefillContainer] = SKColor.Parse("FFFFCC").ToString(),
                 [EspColorOption.Explosives] = SKColors.OrangeRed.ToString(),
+                [EspColorOption.FPS] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.RaidStats] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.StatusText] = SKColors.Red.ToString(),
+                [EspColorOption.MagazineInfo] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.Crosshair] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.FireportAim] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.AimbotFOV] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.AimbotLock] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.ClosestPlayer] = SKColors.WhiteSmoke.ToString(),
+                [EspColorOption.MiniRadarTheme] = SKColors.WhiteSmoke.ToString()
             };
 
         /// <summary>
@@ -132,6 +152,39 @@ namespace arena_dma_radar.UI
                             SKPaints.PaintExplosiveESP.Color = skColor;
                             SKPaints.PaintExplosiveRadiusESP.Color = skColor;
                             SKPaints.TextExplosiveESP.Color = skColor;
+                            break;
+                        case EspColorOption.FPS:
+                            SKPaints.TextESPFPS.Color = skColor;
+                            break;
+                        case EspColorOption.RaidStats:
+                            SKPaints.TextESPRaidStats.Color = skColor;
+                            break;
+                        case EspColorOption.StatusText:
+                            SKPaints.TextESPStatusText.Color = skColor;
+                            break;
+                        case EspColorOption.MagazineInfo:
+                            SKPaints.TextMagazineESP.Color = skColor;
+                            SKPaints.TextMagazineInfoESP.Color = skColor;
+                            break;
+                        case EspColorOption.Crosshair:
+                            SKPaints.PaintCrosshairESP.Color = skColor;
+                            SKPaints.PaintCrosshairESPDot.Color = skColor;
+                            break;
+                        case EspColorOption.FireportAim:
+                            SKPaints.PaintFireportAimESP.Color = skColor;
+                            break;
+                        case EspColorOption.AimbotFOV:
+                            SKPaints.PaintAimbotFOVESP.Color = skColor;
+                            break;
+                        case EspColorOption.AimbotLock:
+                            SKPaints.PaintAimbotLockedLineESP.Color = skColor;
+                            break;
+                        case EspColorOption.ClosestPlayer:
+                            SKPaints.TextESPClosestPlayer.Color = skColor;
+                            break;
+                        case EspColorOption.MiniRadarTheme:
+                            SKPaints.PaintMiniRadarOutlineESP.Color = skColor;
+                            SKPaints.PaintMiniRadarResizeHandleESP.Color = skColor;
                             break;
                     }
                 }

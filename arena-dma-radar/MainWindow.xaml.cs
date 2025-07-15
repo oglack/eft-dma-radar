@@ -99,8 +99,8 @@ namespace arena_dma_radar
         private readonly Stopwatch _statusSw = Stopwatch.StartNew();
         private int _statusOrder = 1;
 
-        private EspWidget _aimview;
-        public EspWidget AimView { get => _aimview; private set => _aimview = value; }
+        private AimviewWidget _aimview;
+        public AimviewWidget AimView { get => _aimview; private set => _aimview = value; }
 
         private PlayerInfoWidget _playerInfo;
         public PlayerInfoWidget PlayerInfo { get => _playerInfo; private set => _playerInfo = value; }
@@ -415,12 +415,12 @@ namespace arena_dma_radar
                             player.Draw(canvas, mapParams, localPlayer);
                         }
 
+                    closestToMouse?.DrawMouseover(canvas, mapParams, localPlayer); // draw tooltip for object the mouse is closest to
+
                     if (allPlayers is not null && Config.ShowInfoTab) // Players Overlay
                         _playerInfo?.Draw(canvas, localPlayer, allPlayers);
 
-                    closestToMouse?.DrawMouseover(canvas, mapParams, localPlayer); // draw tooltip for object the mouse is closest to
-
-                    if (Config.ESPWidgetEnabled)
+                    if (Config.AimviewWidgetEnabled)
                         _aimview?.Draw(canvas);
 
                     if (Config.ShowDebugWidget)
@@ -816,17 +816,16 @@ namespace arena_dma_radar
         {
             var left = 2;
             var top = 0;
+            var right = (float)skCanvas.ActualWidth;
+            var bottom = (float)skCanvas.ActualHeight;
 
             if (Config.Widgets.AimviewLocation == default)
             {
-                var right = (float)skCanvas.ActualWidth;
-                var bottom = (float)skCanvas.ActualHeight;
                 Config.Widgets.AimviewLocation = new SKRect(left, bottom - 200, left + 200, bottom);
             }
 
             if (Config.Widgets.PlayerInfoLocation == default)
             {
-                var right = (float)skCanvas.ActualWidth;
                 Config.Widgets.PlayerInfoLocation = new SKRect(right - 1, top + 45, right, top + 1);
             }
 
@@ -835,7 +834,7 @@ namespace arena_dma_radar
                 Config.Widgets.DebugInfoLocation = new SKRect(left, top, left, top);
             }
 
-            _aimview = new EspWidget(skCanvas, Config.Widgets.AimviewLocation, Config.Widgets.AimviewMinimized, UIScale);
+            _aimview = new AimviewWidget(skCanvas, Config.Widgets.AimviewLocation, Config.Widgets.AimviewMinimized, UIScale);
             _playerInfo = new PlayerInfoWidget(skCanvas, Config.Widgets.PlayerInfoLocation, Config.Widgets.PlayerInfoMinimized, UIScale);
             _debugInfo = new DebugInfoWidget(skCanvas, Config.Widgets.DebugInfoLocation, Config.Widgets.DebugInfoMinimized, UIScale);
         }
@@ -1269,11 +1268,11 @@ namespace arena_dma_radar
                 if (!Config.WindowMaximized)
                     Config.WindowSize = new Size(ActualWidth, ActualHeight);
 
-                Config.Widgets.AimviewLocation = _aimview.Rectangle;
+                Config.Widgets.AimviewLocation = _aimview.ClientRect;
                 Config.Widgets.AimviewMinimized = _aimview.Minimized;
-                Config.Widgets.PlayerInfoLocation = _playerInfo.Rectangle;
+                Config.Widgets.PlayerInfoLocation = _playerInfo.ClientRect;
                 Config.Widgets.PlayerInfoMinimized = _playerInfo.Minimized;
-                Config.Widgets.DebugInfoLocation = _debugInfo.Rectangle;
+                Config.Widgets.DebugInfoLocation = _debugInfo.ClientRect;
                 Config.Widgets.DebugInfoMinimized = _debugInfo.Minimized;
                 Config.Zoom = _zoom;
 

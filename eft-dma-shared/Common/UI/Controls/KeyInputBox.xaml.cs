@@ -72,6 +72,8 @@ namespace eft_dma_shared.Common.UI.Controls
             set => SetValue(PlaceholderTextProperty, value);
         }
 
+        public bool IsCapturing => _isCapturing;
+
         private bool _isCapturing = false;
         private bool _useInputManager = false;
         private readonly List<int> _registeredActionIds = new List<int>();
@@ -83,11 +85,14 @@ namespace eft_dma_shared.Common.UI.Controls
 
         #region Events
         public event EventHandler<KeyInputEventArgs> KeyInputChanged;
+        public event EventHandler<bool> CapturingStateChanged;
         #endregion
 
         public KeyInputBox()
         {
             InitializeComponent();
+
+            this.Focusable = true;
 
             DisplayText.Text = PlaceholderText;
 
@@ -147,8 +152,11 @@ namespace eft_dma_shared.Common.UI.Controls
 
             try
             {
-                var actionName = $"KeyInputBox_Capture_{GetHashCode()}_{DateTime.Now.Ticks}";
-                RegisterGlobalKeyHandlers(actionName);
+                if (_registeredActionIds.Count == 0)
+                {
+                    var actionName = $"KeyInputBox_Capture_{GetHashCode()}_{DateTime.Now.Ticks}";
+                    RegisterGlobalKeyHandlers(actionName);
+                }
             }
             catch (Exception ex)
             {
@@ -169,12 +177,14 @@ namespace eft_dma_shared.Common.UI.Controls
                 new { Start = 0x30, End = 0x39 },
                 // Letter keys
                 new { Start = 0x41, End = 0x5A },
+                // Windows keys
+                new { Start = 0x5B, End = 0x5C },
                 // Numpad
                 new { Start = 0x60, End = 0x6F },
                 // Function keys
                 new { Start = 0x70, End = 0x87 },
-                // Extended keys
-                new { Start = 0x90, End = 0x93 },
+                // Extended keys (including left/right modifiers)
+                new { Start = 0x90, End = 0xA5 }, // This includes 0xA0-0xA5
                 // OEM keys
                 new { Start = 0xBA, End = 0xC0 },
                 new { Start = 0xDB, End = 0xDF }
@@ -248,16 +258,24 @@ namespace eft_dma_shared.Common.UI.Controls
                         }
                         else // Keyboard keys
                         {
-                            try
-                            {
-                                var key = KeyInterop.KeyFromVirtualKey(e.KeyCode);
-                                SetKeyboardInput(key);
-                                StopCapturing();
-                            }
-                            catch
+                            if (IsLeftRightKey(e.KeyCode))
                             {
                                 SetRawKeyInput(e.KeyCode);
                                 StopCapturing();
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    var key = KeyInterop.KeyFromVirtualKey(e.KeyCode);
+                                    SetKeyboardInput(key);
+                                    StopCapturing();
+                                }
+                                catch
+                                {
+                                    SetRawKeyInput(e.KeyCode);
+                                    StopCapturing();
+                                }
                             }
                         }
                     }
@@ -314,6 +332,9 @@ namespace eft_dma_shared.Common.UI.Controls
                 _ignoreLeftMouseUntilRelease = true;
                 _leftMouseCurrentlyPressed = true;
                 _leftMouseReleaseTimer.Start();
+
+                this.Focus();
+
                 StartCapturing();
             }
         }
@@ -478,6 +499,8 @@ namespace eft_dma_shared.Common.UI.Controls
 
                 ClearButton.Visibility = Visibility.Collapsed;
 
+                CapturingStateChanged?.Invoke(this, true);
+
                 StartGlobalCapture();
 
                 if (_useInputManager)
@@ -508,6 +531,8 @@ namespace eft_dma_shared.Common.UI.Controls
                     Mouse.Capture(null);
 
                 UpdateDisplayText();
+
+                CapturingStateChanged?.Invoke(this, false);
             }
         }
 
@@ -695,6 +720,10 @@ namespace eft_dma_shared.Common.UI.Controls
                 // Letters (0x41-0x5A)
                 >= 0x41 and <= 0x5A => ((char)keyCode).ToString(),
 
+                // Left/Right Windows keys
+                0x5B => "Left Win",
+                0x5C => "Right Win",
+
                 // Numpad numbers (0x60-0x69)
                 >= 0x60 and <= 0x69 => $"Numpad {keyCode - 0x60}",
 
@@ -708,7 +737,6 @@ namespace eft_dma_shared.Common.UI.Controls
                 // Function keys (0x70-0x87)
                 >= 0x70 and <= 0x87 => $"F{keyCode - 0x6F}",
 
-                // Extended keys
                 0x90 => "Num Lock",
                 0x91 => "Scroll Lock",
                 0xA0 => "Left Shift",
@@ -749,6 +777,18 @@ namespace eft_dma_shared.Common.UI.Controls
         public string GetCurrentKeyName()
         {
             return DisplayText.Text != PlaceholderText ? DisplayText.Text : string.Empty;
+        }
+
+        private bool IsLeftRightKey(int keyCode)
+        {
+            return keyCode switch
+            {
+                0xA0 or 0xA1 => true, // Left/Right Shift
+                0xA2 or 0xA3 => true, // Left/Right Ctrl
+                0xA4 or 0xA5 => true, // Left/Right Alt
+                0x5B or 0x5C => true, // Left/Right Windows key
+                _ => false
+            };
         }
 
         private void OnControlUnloaded(object sender, RoutedEventArgs e)

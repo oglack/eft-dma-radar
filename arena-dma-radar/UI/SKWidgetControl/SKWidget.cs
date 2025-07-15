@@ -53,6 +53,8 @@ namespace arena_dma_radar.UI.SKWidgetControl
         #region Public Properties
         public bool Minimized { get; protected set; }
         public SKRect ClientRectangle => new(Rectangle.Left, Rectangle.Top + TitleBarHeight, Rectangle.Right, Rectangle.Bottom);
+        public SKRect ClientRect => new SKRect(Location.X, Location.Y, Location.X + Size.Width, Location.Y + Size.Height);
+
         public int ZIndex
         {
             get => _zIndex;

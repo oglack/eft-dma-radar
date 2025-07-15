@@ -16,6 +16,8 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
 {
     public static class ChamsManager
     {
+        public static event Action MaterialsUpdated;
+
         private static readonly Stopwatch _rateLimit = new();
 
         private static readonly FrozenDictionary<(ChamsMode, ChamsEntityType), string> BundleMapping =
@@ -283,6 +285,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
                 {
                     CacheMaterialIds();
                     LoneLogging.WriteLine($"[CHAMS REFRESH] Successfully recovered {successCount}/{missingCombos.Count} materials");
+                    NotifyMaterialsUpdated();
                 }
 
                 return successCount == missingCombos.Count;
@@ -301,6 +304,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
                 if (RefreshFailedMaterials())
                 {
                     NotificationsShared.Success("[CHAMS] All missing materials recovered!");
+                    NotifyMaterialsUpdated();
                     return true;
                 }
 
@@ -322,11 +326,16 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
                         _materials[kvp.Key] = kvp.Value;
                     }
 
-                    return ForceInitialize();
+                    var result = ForceInitialize();
+                    if (result)
+                        NotifyMaterialsUpdated();
+                    return result;
                 }
                 else
                 {
                     NotificationsShared.Warning($"[CHAMS] Partial recovery: {currentCount}/{expectedCount} materials loaded");
+                    if (currentCount > 0)
+                        NotifyMaterialsUpdated();
                     return currentCount > 0;
                 }
             }
@@ -347,6 +356,18 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
         #endregion
 
         #region Private Implementation
+
+        private static void NotifyMaterialsUpdated()
+        {
+            try
+            {
+                MaterialsUpdated?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[CHAMS] Error notifying materials updated: {ex.Message}");
+            }
+        }
 
         private static int GetStandardMaterialId(ChamsMode mode, ChamsEntityType entityType)
         {
@@ -402,7 +423,11 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
             }
 
             if (_materials.Count > 0)
+            {
                 CacheMaterialIds();
+                LoneLogging.WriteLine("[CHAMS] Materials created successfully - notifying managers for color application");
+                NotifyMaterialsUpdated();
+            }
 
             LoneLogging.WriteLine($"[CHAMS MANAGER] Initialize() -> Completed with {_materials.Count}/{allCombos.Count} materials");
 
@@ -467,7 +492,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
             ChamsMode mode,
             ChamsEntityType playerType,
             UnityObjects unityObjects,
-            ChamsConfig chamsConfig,
+            dynamic chamsConfig,
             ulong visibleColorMem,
             ulong invisibleColorMem,
             RemoteBytes chamsColorMem)
@@ -500,13 +525,25 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Chams.Arena
                 try
                 {
                     var entitySettings = chamsConfig.GetEntitySettings(playerType);
-                    if (entitySettings != null)
+                    var materialColorSettings = entitySettings.MaterialColors?.ContainsKey(mode) == true
+                        ? entitySettings.MaterialColors[mode]
+                        : null;
+
+                    if (materialColorSettings != null)
+                    {
+                        visibleColorStr = materialColorSettings.VisibleColor ?? DefaultVisibleColor;
+                        invisibleColorStr = materialColorSettings.InvisibleColor ?? DefaultInvisibleColor;
+                    }
+                    else
                     {
                         visibleColorStr = entitySettings.VisibleColor ?? DefaultVisibleColor;
                         invisibleColorStr = entitySettings.InvisibleColor ?? DefaultInvisibleColor;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    LoneLogging.WriteLine($"[CHAMS] Error getting colors for {mode}/{playerType}: {ex.Message}");
+                }
 
                 var visibleColor = SKColor.Parse(visibleColorStr);
                 var invisibleColor = SKColor.Parse(invisibleColorStr);

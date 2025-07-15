@@ -12,6 +12,7 @@ using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.LowLevel;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using static eft_dma_radar.Tarkov.API.EFTProfileService;
@@ -129,10 +130,16 @@ namespace eft_dma_radar.UI.Misc
         public bool ShowLootInfoWidget { get; set; } = false;
 
         /// <summary>
+        /// Shows Quest Info Tab/Pane.
+        /// </summary>
+        [JsonPropertyName("showQuestInfoWidget")]
+        public bool ShowQuestInfoWidget { get; set; } = false;
+
+        /// <summary>
         /// Enables ESP Widget window in Main Window.
         /// </summary>
         [JsonPropertyName("aimviewEnabled")]
-        public bool ESPWidgetEnabled { get; set; } = true;
+        public bool AimviewWidgetEnabled { get; set; } = true;
 
         /// <summary>
         /// Connects grouped players together via a semi-transparent line.
@@ -145,6 +152,12 @@ namespace eft_dma_radar.UI.Misc
         /// </summary>
         [JsonPropertyName("maskNames")]
         public bool MaskNames { get; set; } = true;
+
+        /// <summary>
+        /// Replace all names with '<Hidden>'
+        /// </summary>
+        [JsonPropertyName("playersOnTop")]
+        public bool PlayersOnTop { get; set; } = true;
 
         /// <summary>
         /// Minimum loot value (rubles) to display 'normal loot' on map.
@@ -252,6 +265,14 @@ namespace eft_dma_radar.UI.Misc
         [JsonInclude]
         [JsonPropertyName("widgets")]
         public WidgetsConfig Widgets { get; private set; } = new();
+
+        /// <summary>
+        /// ESP Widgets Configuration.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("widgetsESP")]
+        public ESPWidgetsConfig ESPWidgets { get; private set; } = new();
+
         /// <summary>
         /// Hotkeys Configuration.
         /// </summary>
@@ -412,6 +433,9 @@ namespace eft_dma_radar.UI.Misc
             if (config.Widgets == null)
                 config.Widgets = new WidgetsConfig();
 
+            if (config.ESPWidgets == null)
+                config.ESPWidgets = new ESPWidgetsConfig();
+
             if (config.HotKeys == null)
                 config.HotKeys = new HotkeyConfig();
 
@@ -495,6 +519,9 @@ namespace eft_dma_radar.UI.Misc
 
                 config.MemWrites.Chams.InitializeDefaults();
 
+                if (config.MemWrites.SilentLoot == null)
+                    config.MemWrites.SilentLoot = new SilentLootConfig();
+
                 if (config.MemWrites.TimeOfDay == null)
                     config.MemWrites.TimeOfDay = new TimeOfDayConfig();
 
@@ -546,6 +573,9 @@ namespace eft_dma_radar.UI.Misc
                 if (config.ESP.Crosshair == null)
                     config.ESP.Crosshair = new ESPCrosshairOptions();
 
+                if (config.ESP.MiniRadar == null)
+                    config.ESP.MiniRadar = new ESPMiniRadarOptions();
+
                 if (config.ESP.PlayerTypeESPSettings == null)
                     config.ESP.PlayerTypeESPSettings = new PlayerTypeSettingsESPConfig();
 
@@ -582,6 +612,12 @@ namespace eft_dma_radar.UI.Misc
 
                 try { var temp = config.Widgets.LootInfoLocation; }
                 catch { config.Widgets.LootInfoLocation = new SKRect(0, 0, 300, 300); }
+            }
+
+            if (config.ESPWidgets != null)
+            {
+                try { var temp = config.ESPWidgets.QuestInfoLocation; }
+                catch { config.ESPWidgets.QuestInfoLocation = new SKRect(0, 0, 300, 300); }
             }
 
             if (config.Containers != null)
@@ -933,6 +969,12 @@ namespace eft_dma_radar.UI.Misc
         public int AimlineLength { get; set; } = 15;
 
         /// <summary>
+        /// Minimum kd required to display kd
+        /// </summary>
+        [JsonPropertyName("minimumKD")]
+        public float MinKD { get; set; } = 1f;
+
+        /// <summary>
         /// Show up/down arrows instead of numerical height
         /// </summary>
         [JsonPropertyName("heightIndicator")]
@@ -944,8 +986,17 @@ namespace eft_dma_radar.UI.Misc
         [JsonPropertyName("importantIndicator")]
         public bool ImportantIndicator { get; set; } = true;
 
+        /// <summary>
+        /// Aimline extends to show player looking in your direction
+        /// </summary>
+        [JsonPropertyName("highAlert")]
+        public bool HighAlert { get; set; } = true;
+
         [JsonIgnore]
         public bool ShowName => Information.Contains("Name");
+
+        [JsonIgnore]
+        public bool ShowKD => Information.Contains("KD");
 
         [JsonIgnore]
         public bool ShowDistance => Information.Contains("Distance");
@@ -1077,10 +1128,22 @@ namespace eft_dma_radar.UI.Misc
         public int RenderDistance { get; set; } = 1500;
 
         /// <summary>
+        /// Minimum kd required to display kd
+        /// </summary>
+        [JsonPropertyName("minimumKD")]
+        public float MinKD { get; set; } = 1f;
+
+        /// <summary>
         /// Display name in ESP
         /// </summary>
         [JsonIgnore]
         public bool ShowName => Information.Contains("Name");
+
+        /// <summary>
+        /// Display kd in ESP
+        /// </summary>
+        [JsonIgnore]
+        public bool ShowKD => Information.Contains("KD");
 
         /// <summary>
         /// Display distance in ESP
@@ -1149,6 +1212,7 @@ namespace eft_dma_radar.UI.Misc
         {
             var entityTypes = new List<string>
             {
+                "Airdrop",
                 "Corpse",
                 "RegularLoot",
                 "ImportantLoot",
@@ -1245,6 +1309,7 @@ namespace eft_dma_radar.UI.Misc
         {
             var entityTypes = new List<string>
             {
+                "Airdrop",
                 "Corpse",
                 "RegularLoot",
                 "ImportantLoot",
@@ -1253,7 +1318,7 @@ namespace eft_dma_radar.UI.Misc
                 "Transit",
                 "Exfil",
                 "Door",
-                "Grenmade",
+                "Grenade",
                 "Tripwire",
                 "Mine",
                 "MortarProjectile"
@@ -1347,6 +1412,12 @@ namespace eft_dma_radar.UI.Misc
         public bool KappaFilter { get; set; } = false;
 
         /// <summary>
+        /// Enables processing optional related quest tasks
+        /// </summary>
+        [JsonPropertyName("optionalTaskFilter")]
+        public bool OptionalTaskFilter { get; set; } = false;
+
+        /// <summary>
         /// Enables Quest Kill Zones
         /// </summary>
         [JsonPropertyName("killZones")]
@@ -1411,10 +1482,28 @@ namespace eft_dma_radar.UI.Misc
         public bool ShowFPS { get; set; } = true;
 
         /// <summary>
+        /// Enables quest info Widget on fuser.
+        /// </summary>
+        [JsonPropertyName("showQuestInfoWidget")]
+        public bool ShowQuestInfoWidget { get; set; } = true;
+
+        /// <summary>
+        /// FPS offset position
+        /// </summary>
+        [JsonPropertyName("fpsOffset")]
+        public PointFSer FPSOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
         /// Show Energy & Hydration bar.
         /// </summary>
         [JsonPropertyName("energyHydrationBar")]
         public bool EnergyHydrationBar { get; set; } = true;
+
+        /// <summary>
+        /// Status bars (energy/hydration) offset position
+        /// </summary>
+        [JsonPropertyName("statusBarOffset")]
+        public PointFSer StatusBarOffset { get; set; } = new PointFSer(0, 0);
 
         /// <summary>
         /// Display Aimline out of the barrel fireport.
@@ -1441,16 +1530,69 @@ namespace eft_dma_radar.UI.Misc
         public bool ShowMagazine { get; set; } = true;
 
         /// <summary>
+        /// Magazine counter offset position
+        /// </summary>
+        [JsonPropertyName("magazineOffset")]
+        public PointFSer MagazineOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
+        /// Show closest player in ESP.
+        /// </summary>
+        [JsonPropertyName("showClosestPlayer")]
+        public bool ShowClosestPlayer { get; set; } = true;
+
+        /// <summary>
+        /// Closest player offset position
+        /// </summary>
+        [JsonPropertyName("closestPlayerOffset")]
+        public PointFSer ClosestPlayerOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
+        /// Show top loot in ESP.
+        /// </summary>
+        [JsonPropertyName("showTopLoot")]
+        public bool ShowTopLoot { get; set; } = true;
+
+        /// <summary>
+        /// Closest player offset position
+        /// </summary>
+        [JsonPropertyName("topLootOffset")]
+        public PointFSer TopLootOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
         /// Display Raid Stats (Player Type/Count,etc.) in top right corner.
         /// </summary>
         [JsonPropertyName("showRaidStats")]
         public bool ShowRaidStats { get; set; } = true;
 
         /// <summary>
+        /// Raid stats offset position
+        /// </summary>
+        [JsonPropertyName("raidStatsOffset")]
+        public PointFSer RaidStatsOffset { get; set; } = new PointFSer(0, 0);
+
+        /// <summary>
+        /// Mini radar configuration options
+        /// </summary>
+        public ESPMiniRadarOptions MiniRadar { get; set; } = new ESPMiniRadarOptions();
+
+        /// <summary>
+        /// Mini radar position and size
+        /// </summary>
+        [JsonPropertyName("radarRect")]
+        public RectFSer RadarRect { get; set; } = new RectFSer(20, 20, 220, 220);
+
+        /// <summary>
         /// Display Status (aimbot enabled, bone, wide lean, etc.) in top center of ESP Screen.
         /// </summary>
         [JsonPropertyName("showStatusText")]
         public bool ShowStatusText { get; set; } = true;
+
+        /// <summary>
+        /// Status text offset position
+        /// </summary>
+        [JsonPropertyName("statusTextOffset")]
+        public PointFSer StatusTextOffset { get; set; } = new PointFSer(0, 0);
 
         /// <summary>
         /// ESP Font Size/Scale.
@@ -1476,6 +1618,12 @@ namespace eft_dma_radar.UI.Misc
         /// </summary>
         [JsonPropertyName("autoFS")]
         public bool AutoFullscreen { get; set; } = false;
+
+        /// <summary>
+        /// Thew zoom level of the mini radar.
+        /// </summary>
+        [JsonPropertyName("radarZoom")]
+        public float RadarZoom { get; set; } = 4.0f;
 
         /// <summary>
         /// Selected screen for Auto Startup.
@@ -1507,6 +1655,27 @@ namespace eft_dma_radar.UI.Misc
         [JsonInclude]
         [JsonPropertyName("entityTypeESPSettings")]
         public EntityTypeSettingsESPConfig EntityTypeESPSettings { get; set; } = new EntityTypeSettingsESPConfig();
+    }
+
+    public sealed class ESPMiniRadarOptions
+    {
+        /// <summary>
+        /// Show Mini Radar in ESP.
+        /// </summary>
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// Show loot on mini radar
+        /// </summary>
+        [JsonPropertyName("showLoot")]
+        public bool ShowLoot { get; set; } = true;
+
+        /// <summary>
+        /// Mini radar entity scale
+        /// </summary>
+        [JsonPropertyName("scale")]
+        public float Scale { get; set; } = 1;
     }
 
     public sealed class ESPCrosshairOptions
@@ -2267,6 +2436,52 @@ namespace eft_dma_radar.UI.Misc
         {
             get => new(_lInfoLoc.Left, _lInfoLoc.Top, _lInfoLoc.Right, _lInfoLoc.Bottom);
             set => _lInfoLoc = new RectFSer(value.Left, value.Top, value.Right, value.Bottom);
+        }
+
+        #endregion
+
+        #region Quest Info
+
+        [JsonInclude]
+        [JsonPropertyName("questInfoLocation")]
+        public RectFSer _qInfoLoc { private get; set; }
+
+        [JsonPropertyName("questInfoMinimized")]
+        public bool QuestInfoMinimized { get; set; } = false;
+
+        /// <summary>
+        /// Loot Info Location
+        /// </summary>
+        [JsonIgnore]
+        public SKRect QuestInfoLocation
+        {
+            get => new(_qInfoLoc.Left, _qInfoLoc.Top, _qInfoLoc.Right, _qInfoLoc.Bottom);
+            set => _qInfoLoc = new RectFSer(value.Left, value.Top, value.Right, value.Bottom);
+        }
+
+        #endregion
+    }
+
+    public sealed class ESPWidgetsConfig
+    {
+
+        #region Quest Info
+
+        [JsonInclude]
+        [JsonPropertyName("questInfoLocationESP")]
+        public RectFSer _qInfoLoc { private get; set; }
+
+        [JsonPropertyName("questInfoMinimizedESP")]
+        public bool QuestInfoMinimized { get; set; } = false;
+
+        /// <summary>
+        /// Loot Info Location
+        /// </summary>
+        [JsonIgnore]
+        public SKRect QuestInfoLocation
+        {
+            get => new(_qInfoLoc.Left, _qInfoLoc.Top, _qInfoLoc.Right, _qInfoLoc.Bottom);
+            set => _qInfoLoc = new RectFSer(value.Left, value.Top, value.Right, value.Bottom);
         }
 
         #endregion

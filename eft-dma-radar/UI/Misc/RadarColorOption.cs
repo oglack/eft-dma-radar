@@ -28,6 +28,7 @@ namespace eft_dma_radar.UI
         FoodFilterLoot,
         BackpackFilterLoot,
         QuestLoot,
+        Airdrop,
         StaticQuestItemsAndZones,
         Corpse,
         Explosives,
@@ -85,6 +86,7 @@ namespace eft_dma_radar.UI
                 [RadarColorOption.WishlistLoot] = SKColors.Red.ToString(),
                 [RadarColorOption.ContainerLoot] = SKColor.Parse("FFFFCC").ToString(),
                 [RadarColorOption.QuestLoot] = SKColors.YellowGreen.ToString(),
+                [RadarColorOption.Airdrop] = SKColors.Red.ToString(),
                 [RadarColorOption.StaticQuestItemsAndZones] = SKColors.DeepPink.ToString(),
                 [RadarColorOption.QuestKillZone] = SKColors.DeepPink.ToString(),
                 [RadarColorOption.Corpse] = SKColors.Silver.ToString(),
@@ -120,87 +122,109 @@ namespace eft_dma_radar.UI
                     {
                         case RadarColorOption.LocalPlayer:
                             SKPaints.PaintLocalPlayer.Color = skColor;
+                            SKPaints.PaintMiniLocalPlayer.Color = skColor;
                             SKPaints.TextLocalPlayer.Color = skColor;
-                            EspWidget.PaintESPWidgetLocalPlayer.Color = skColor;
+                            AimviewWidget.PaintESPWidgetLocalPlayer.Color = skColor;
                             break;
                         case RadarColorOption.Friendly:
                             SKPaints.PaintTeammate.Color = skColor;
+                            SKPaints.PaintMiniTeammate.Color = skColor;
                             SKPaints.TextTeammate.Color = skColor;
-                            EspWidget.PaintESPWidgetTeammate.Color = skColor;
+                            AimviewWidget.PaintESPWidgetTeammate.Color = skColor;
                             break;
                         case RadarColorOption.USEC:
                             SKPaints.PaintUSEC.Color = skColor;
+                            SKPaints.PaintMiniUSEC.Color = skColor;
                             SKPaints.TextUSEC.Color = skColor;
-                            EspWidget.PaintESPWidgetUSEC.Color = skColor;
+                            AimviewWidget.PaintESPWidgetUSEC.Color = skColor;
                             break;
                         case RadarColorOption.BEAR:
                             SKPaints.PaintBEAR.Color = skColor;
+                            SKPaints.PaintMiniBEAR.Color = skColor;
                             SKPaints.TextBEAR.Color = skColor;
-                            EspWidget.PaintESPWidgetBEAR.Color = skColor;
+                            AimviewWidget.PaintESPWidgetBEAR.Color = skColor;
                             break;
                         case RadarColorOption.Focused:
                             SKPaints.PaintFocused.Color = skColor;
+                            SKPaints.PaintMiniFocused.Color = skColor;
                             SKPaints.TextFocused.Color = skColor;
-                            EspWidget.PaintESPWidgetFocused.Color = skColor;
+                            AimviewWidget.PaintESPWidgetFocused.Color = skColor;
                             break;
                         case RadarColorOption.Streamer:
                             SKPaints.PaintStreamer.Color = skColor;
+                            SKPaints.PaintMiniStreamer.Color = skColor;
                             SKPaints.TextStreamer.Color = skColor;
-                            EspWidget.PaintESPWidgetStreamer.Color = skColor;
+                            AimviewWidget.PaintESPWidgetStreamer.Color = skColor;
                             break;
                         case RadarColorOption.AimbotTarget:
                             SKPaints.PaintAimbotLocked.Color = skColor;
+                            SKPaints.PaintMiniAimbotLocked.Color = skColor;
                             SKPaints.TextAimbotLocked.Color = skColor;
-                            EspWidget.PaintESPWidgetAimbotLocked.Color = skColor;
+                            AimviewWidget.PaintESPWidgetAimbotLocked.Color = skColor;
                             break;
                         case RadarColorOption.Special:
                             SKPaints.PaintSpecial.Color = skColor;
+                            SKPaints.PaintMiniSpecial.Color = skColor;
                             SKPaints.TextSpecial.Color = skColor;
-                            EspWidget.PaintESPWidgetSpecial.Color = skColor;
+                            AimviewWidget.PaintESPWidgetSpecial.Color = skColor;
                             break;
                         case RadarColorOption.PlayerScav:
                             SKPaints.PaintPScav.Color = skColor;
+                            SKPaints.PaintMiniPScav.Color = skColor;
                             SKPaints.TextPScav.Color = skColor;
-                            EspWidget.PaintESPWidgetPScav.Color = skColor;
+                            AimviewWidget.PaintESPWidgetPScav.Color = skColor;
                             break;
                         case RadarColorOption.Scav:
                             SKPaints.PaintScav.Color = skColor;
+                            SKPaints.PaintMiniScav.Color = skColor;
                             SKPaints.TextScav.Color = skColor;
-                            EspWidget.PaintESPWidgetScav.Color = skColor;
+                            AimviewWidget.PaintESPWidgetScav.Color = skColor;
                             break;
                         case RadarColorOption.Raider:
                             SKPaints.PaintRaider.Color = skColor;
+                            SKPaints.PaintMiniRaider.Color = skColor;
                             SKPaints.TextRaider.Color = skColor;
-                            EspWidget.PaintESPWidgetRaider.Color = skColor;
+                            AimviewWidget.PaintESPWidgetRaider.Color = skColor;
                             break;
                         case RadarColorOption.Boss:
                             SKPaints.PaintBoss.Color = skColor;
+                            SKPaints.PaintMiniBoss.Color = skColor;
                             SKPaints.TextBoss.Color = skColor;
-                            EspWidget.PaintESPWidgetBoss.Color = skColor;
+                            AimviewWidget.PaintESPWidgetBoss.Color = skColor;
                             break;
                         case RadarColorOption.DeathMarker:
                             SKPaints.PaintDeathMarker.Color = skColor;
                             break;
                         case RadarColorOption.RegularLoot:
                             SKPaints.PaintLoot.Color = skColor;
+                            SKPaints.PaintMiniLoot.Color = skColor;
                             SKPaints.TextLoot.Color = skColor;
-                            EspWidget.PaintESPWidgetLoot.Color = skColor;
-                            EspWidget.TextESPWidgetLoot.Color = skColor;
+                            AimviewWidget.PaintESPWidgetLoot.Color = skColor;
+                            AimviewWidget.TextESPWidgetLoot.Color = skColor;
                             break;
                         case RadarColorOption.ValuableLoot:
                             SKPaints.PaintImportantLoot.Color = skColor;
+                            SKPaints.PaintMiniImportantLoot.Color = skColor;
                             SKPaints.TextImportantLoot.Color = skColor;
                             break;
                         case RadarColorOption.WishlistLoot:
                             SKPaints.PaintWishlistItem.Color = skColor;
+                            SKPaints.PaintMiniWishlistItem.Color = skColor;
                             SKPaints.TextWishlistItem.Color = skColor;
                             break;
                         case RadarColorOption.QuestLoot:
                             SKPaints.PaintQuestItem.Color = skColor;
+                            SKPaints.PaintMiniQuestItem.Color = skColor;
                             SKPaints.TextQuestItem.Color = skColor;
+                            break;
+                        case RadarColorOption.Airdrop:
+                            SKPaints.PaintAirdrop.Color = skColor;
+                            SKPaints.PaintMiniAirdrop.Color = skColor;
+                            SKPaints.TextAirdrop.Color = skColor;
                             break;
                         case RadarColorOption.StaticQuestItemsAndZones:
                             SKPaints.QuestHelperPaint.Color = skColor;
+                            SKPaints.MiniQuestHelperPaint.Color = skColor;
                             SKPaints.QuestHelperText.Color = skColor;
                             break;
                         case RadarColorOption.QuestKillZone:
@@ -208,22 +232,27 @@ namespace eft_dma_radar.UI
                             break;
                         case RadarColorOption.Corpse:
                             SKPaints.PaintCorpse.Color = skColor;
+                            SKPaints.PaintMiniCorpse.Color = skColor;
                             SKPaints.TextCorpse.Color = skColor;
                             break;
                         case RadarColorOption.MedsFilterLoot:
                             SKPaints.PaintMeds.Color = skColor;
+                            SKPaints.PaintMiniMeds.Color = skColor;
                             SKPaints.TextMeds.Color = skColor;
                             break;
                         case RadarColorOption.FoodFilterLoot:
                             SKPaints.PaintFood.Color = skColor;
+                            SKPaints.PaintMiniFood.Color = skColor;
                             SKPaints.TextFood.Color = skColor;
                             break;
                         case RadarColorOption.BackpackFilterLoot:
                             SKPaints.PaintBackpacks.Color = skColor;
+                            SKPaints.PaintMiniBackpacks.Color = skColor;
                             SKPaints.TextBackpacks.Color = skColor;
                             break;
                         case RadarColorOption.ContainerLoot:
                             SKPaints.PaintContainerLoot.Color = skColor;
+                            SKPaints.PaintMiniContainerLoot.Color = skColor;
                             SKPaints.TextContainer.Color = skColor;
                             break;
                         case RadarColorOption.Explosives:

@@ -380,6 +380,23 @@ namespace arena_dma_radar.UI.Misc
         }
     }
 
+    public struct PointFSer
+    {
+        [JsonPropertyName("x")]
+        public float X { get; set; }
+
+        [JsonPropertyName("y")]
+        public float Y { get; set; }
+
+        public PointFSer() { }
+
+        public PointFSer(float x, float y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
     public static class GuiExtensions
     {
         #region GUI Extensions

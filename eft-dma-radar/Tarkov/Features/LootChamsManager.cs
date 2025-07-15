@@ -77,6 +77,8 @@ namespace eft_dma_radar.Tarkov.Features
 
         public static void Reset()
         {
+            ChamsManager.MaterialsUpdated -= OnMaterialsUpdated;
+
             if (_activeLootChams.Count > 0)
             {
                 RevertAllLootChams();
@@ -92,7 +94,27 @@ namespace eft_dma_radar.Tarkov.Features
         {
             LoadCache();
             ApplyConfiguredColors();
+            
+            ChamsManager.MaterialsUpdated += OnMaterialsUpdated;
+
             LoneLogging.WriteLine("[Loot Chams] Manager initialized");
+        }
+
+        private static void OnMaterialsUpdated()
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(200);
+                    ApplyConfiguredColors();
+                    LoneLogging.WriteLine("[Loot Chams] Applied colors after materials update");
+                }
+                catch (Exception ex)
+                {
+                    LoneLogging.WriteLine($"[Loot Chams] Error applying colors after materials update: {ex.Message}");
+                }
+            });
         }
 
         public static void ApplyConfiguredColors()
@@ -178,9 +200,30 @@ namespace eft_dma_radar.Tarkov.Features
             if (!importantItemSettings.Enabled)
                 return;
 
+            // Add this check - if advanced mem writes is off, use basic mode instead of failing
+            if (!Config.AdvancedMemWrites && importantItemSettings.Mode != ChamsMode.Basic && importantItemSettings.Mode != ChamsMode.Visible)
+            {
+                LoneLogging.WriteLine($"[Loot Chams] AdvancedMemWrites disabled, using Basic mode for ImportantItem instead of {importantItemSettings.Mode}");
+                var basicMaterialId = GetMaterialId(ChamsMode.Basic, ChamsEntityType.ImportantItem);
+                if (basicMaterialId != -1)
+                {
+                    foreach (var item in lootManager.FilteredLoot)
+                    {
+                        if (!IsValidLootItem(item) || !ShouldApplyImportantChams(item))
+                            continue;
+
+                        currentImportantItems.Add(item.ID);
+                    }
+                    ApplyChamsToItems(lootManager.FilteredLoot, currentImportantItems, ChamsMode.Basic, basicMaterialId);
+                }
+                return;
+            }
+
             if (!IsModeAvailable(importantItemSettings.Mode, ChamsEntityType.ImportantItem))
             {
-                LoneLogging.WriteLine($"[Loot Chams] Materials not ready for ImportantItem with mode {importantItemSettings.Mode}");
+                // Only log this if we actually need advanced materials
+                if (importantItemSettings.Mode != ChamsMode.Basic && importantItemSettings.Mode != ChamsMode.Visible)
+                    LoneLogging.WriteLine($"[Loot Chams] Materials not ready for ImportantItem with mode {importantItemSettings.Mode}");
                 return;
             }
 
@@ -203,9 +246,28 @@ namespace eft_dma_radar.Tarkov.Features
             if (!questItemSettings.Enabled)
                 return;
 
+            if (!Config.AdvancedMemWrites && questItemSettings.Mode != ChamsMode.Basic && questItemSettings.Mode != ChamsMode.Visible)
+            {
+                LoneLogging.WriteLine($"[Loot Chams] AdvancedMemWrites disabled, using Basic mode for QuestItem instead of {questItemSettings.Mode}");
+                var basicMaterialId = GetMaterialId(ChamsMode.Basic, ChamsEntityType.QuestItem);
+                if (basicMaterialId != -1)
+                {
+                    foreach (var item in lootManager.FilteredLoot)
+                    {
+                        if (!IsValidLootItem(item) || !ShouldApplyQuestChams(item))
+                            continue;
+
+                        currentQuestItems.Add(item.ID);
+                    }
+                    ApplyChamsToItems(lootManager.FilteredLoot, currentQuestItems, ChamsMode.Basic, basicMaterialId);
+                }
+                return;
+            }
+
             if (!IsModeAvailable(questItemSettings.Mode, ChamsEntityType.QuestItem))
             {
-                LoneLogging.WriteLine($"[Loot Chams] Materials not ready for QuestItem with mode {questItemSettings.Mode}");
+                if (questItemSettings.Mode != ChamsMode.Basic && questItemSettings.Mode != ChamsMode.Visible)
+                    LoneLogging.WriteLine($"[Loot Chams] Materials not ready for QuestItem with mode {questItemSettings.Mode}");
                 return;
             }
 

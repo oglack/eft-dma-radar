@@ -54,7 +54,7 @@ namespace eft_dma_radar
     internal static class Program
     {
         internal const string Name = "EFT DMA Radar";
-        internal const string Version = "1.3.3";
+        internal const string Version = "1.3.4";
 
         /// <summary>
         /// Current application mode

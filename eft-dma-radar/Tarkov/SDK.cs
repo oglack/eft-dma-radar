@@ -37,7 +37,7 @@ namespace SDK
         public readonly partial struct AmmoTemplate
         {
             public const uint ClassName_ClassToken = 0x2002ABC; // MDToken
-            public const uint MethodName_MethodToken = 0x60105A2; // MDToken
+            public const uint MethodName_MethodToken = 0x60105A1; // MDToken
             public const string ClassName = @"\uEF1A";
             public const string MethodName = @"get_LoadUnloadModifier";
         }
@@ -45,7 +45,7 @@ namespace SDK
         public readonly partial struct NoMalfunctions
         {
             public const uint ClassName_ClassToken = 0x20018A0; // MDToken
-            public const uint GetMalfunctionState_MethodToken = 0x6009D18; // MDToken
+            public const uint GetMalfunctionState_MethodToken = 0x6009D17; // MDToken
             public const string ClassName = @"EFT.Player+FirearmController";
             public const string GetMalfunctionState = @"GetMalfunctionState";
         }
@@ -53,7 +53,7 @@ namespace SDK
         public readonly partial struct GymHack
         {
             public const uint ClassName_ClassToken = 0x200223B; // MDToken
-            public const uint MethodName_MethodToken = 0x600D833; // MDToken
+            public const uint MethodName_MethodToken = 0x600D832; // MDToken
             public const string ClassName = @"EFT.Hideout.ShrinkingCircleQTE";
             public const string MethodName = @"\uE001";
         }
@@ -78,7 +78,7 @@ namespace SDK
 
         public readonly partial struct DogtagComponent
         {
-            public const uint MethodName_MethodToken = 0x600FEE0; // MDToken
+            public const uint MethodName_MethodToken = 0x600FEDF; // MDToken
             public const string MethodName = @"\uE000";
         }
 
@@ -99,7 +99,7 @@ namespace SDK
         public readonly partial struct MovementContext
         {
             public const uint ClassName_ClassToken = 0x2001AA7; // MDToken
-            public const uint MethodName_MethodToken = 0x600AC4A; // MDToken
+            public const uint MethodName_MethodToken = 0x600AC49; // MDToken
             public const string ClassName = @"EFT.MovementContext";
             public const string MethodName = @"SetPhysicalCondition";
         }
@@ -115,7 +115,7 @@ namespace SDK
         public readonly partial struct FovChanger
         {
             public const uint ClassName_ClassToken = 0x2002F5F; // MDToken
-            public const uint MethodName_MethodToken = 0x6011F0A; // MDToken
+            public const uint MethodName_MethodToken = 0x6011F09; // MDToken
             public const string ClassName = @"\uF124";
             public const string MethodName = @"SetFov";
         }
@@ -123,7 +123,7 @@ namespace SDK
         public readonly partial struct VitalParts
         {
             public const uint ClassName_ClassToken = 0x2002A61; // MDToken
-            public const uint MethodName_MethodToken = 0x601036A; // MDToken
+            public const uint MethodName_MethodToken = 0x6010369; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.CompoundItem";
             public const string MethodName = @"\uE007";
         }
@@ -131,7 +131,7 @@ namespace SDK
         public readonly partial struct InventoryLogic_Mod
         {
             public const uint ClassName_ClassToken = 0x2002AD8; // MDToken
-            public const uint MethodName_MethodToken = 0x601063B; // MDToken
+            public const uint MethodName_MethodToken = 0x601063A; // MDToken
             public const string ClassName = @"EFT.InventoryLogic.Mod";
             public const string MethodName = @"get_RaidModdable";
         }

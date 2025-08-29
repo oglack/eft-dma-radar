@@ -26,6 +26,7 @@ namespace eft_dma_radar.UI
         ContainerLoot,
         MedsFilterLoot,
         FoodFilterLoot,
+        WeaponsFilterLoot,
         BackpackFilterLoot,
         QuestLoot,
         Airdrop,
@@ -92,6 +93,7 @@ namespace eft_dma_radar.UI
                 [RadarColorOption.Corpse] = SKColors.Silver.ToString(),
                 [RadarColorOption.MedsFilterLoot] = SKColors.LightSalmon.ToString(),
                 [RadarColorOption.FoodFilterLoot] = SKColors.CornflowerBlue.ToString(),
+                [RadarColorOption.WeaponsFilterLoot] = SKColor.Parse("FFE068").ToString(),
                 [RadarColorOption.BackpackFilterLoot] = SKColor.Parse("00b02c").ToString(),
                 [RadarColorOption.Explosives] = SKColors.OrangeRed.ToString(),
                 [RadarColorOption.Switches] = SKColors.Orange.ToString(),
@@ -244,6 +246,11 @@ namespace eft_dma_radar.UI
                             SKPaints.PaintFood.Color = skColor;
                             SKPaints.PaintMiniFood.Color = skColor;
                             SKPaints.TextFood.Color = skColor;
+                            break;
+                        case RadarColorOption.WeaponsFilterLoot:
+                            SKPaints.PaintWeapons.Color = skColor;
+                            SKPaints.PaintMiniWeapons.Color = skColor;
+                            SKPaints.TextWeapons.Color = skColor;
                             break;
                         case RadarColorOption.BackpackFilterLoot:
                             SKPaints.PaintBackpacks.Color = skColor;

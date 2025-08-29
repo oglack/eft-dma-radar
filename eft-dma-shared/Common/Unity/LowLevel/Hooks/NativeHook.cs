@@ -182,7 +182,8 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
                     SetCache();
                     LoneLogging.WriteLine("[NativeHook]: Initialize() -> OK");
                     NotificationsShared.Info("[NativeHook]: Initialize OK");
-
+                    //var bh = new BatchHook((int)NativeOffsets.Shader_CUSTOM_PropertyToID);
+                    //bh.Initialize();
                     return true;
                 }
                 catch (Exception ex)

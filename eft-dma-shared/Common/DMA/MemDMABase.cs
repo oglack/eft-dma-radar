@@ -46,6 +46,7 @@ namespace eft_dma_shared.Common.DMA
         public virtual bool Starting { get; }
         public virtual bool Ready { get; }
         public virtual bool InRaid { get; }
+        public virtual bool IsOffline { get; }
         public virtual bool RaidHasStarted => true;
 
         /// <summary>
@@ -329,7 +330,24 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
-        
+        /// <summary>
+        /// Read memory into a buffer.
+        /// </summary>
+        public byte[] ReadBuffer(ulong addr, int size, bool useCache = true, bool allowIncompleteRead = false)
+        {
+            try
+            {
+                uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
+                var buf = Process.MemRead(addr, (uint)size, flags);
+                if (!allowIncompleteRead && buf.Length != size)
+                    throw new Exception("Incomplete memory read!");
+                return buf;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[DMA] ERROR reading buffer at 0x{addr:X}", ex);
+            }
+        }        
         /// <summary>
         /// Read memory into a Buffer of type <typeparamref name="T"/> and ensure the read is correct.
         /// </summary>
@@ -636,7 +654,19 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
-
+        public bool TryReadValueEnsure<T>(ulong addr, out T result) where T : unmanaged
+        {
+            try
+            {
+                ReadValueEnsure(addr, out result);
+                return true;
+            }
+            catch
+            {
+                result = default;
+                return false;
+            }
+        }
         /// <summary>
         /// Read null terminated string (utf-8/default).
         /// </summary>
@@ -826,6 +856,38 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
+        public unsafe bool TryWriteValueEnsure<T>(ulong addr, ref T value)
+            where T : unmanaged
+        {
+            int cb = sizeof(T);
+            try
+            {
+                fixed (void* pb = &value)
+                {
+                    var b1 = new ReadOnlySpan<byte>(pb, cb);
+                    const int retryCount = 3;
+                    for (int i = 0; i < retryCount; i++)
+                    {
+                        try
+                        {
+                            WriteValue(addr, ref value);
+                            Thread.SpinWait(5);
+                            T temp = ReadValue<T>(addr, false);
+                            var b2 = new ReadOnlySpan<byte>(&temp, cb);
+                            if (b1.SequenceEqual(b2))
+                                return true;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (VmmException)
+            {
+                if (AntiPage.Initialized)
+                    AntiPage.Register(addr, (uint)cb);
+            }
+            return false;
+        }
 
         /// <summary>
         /// Write value type/struct to specified address.
@@ -948,7 +1010,43 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
+        /// <summary>
+        /// Write a buffer to the specified address and validate the right bytes were written.
+        /// </summary>
+        /// <param name="addr">Address to write to.</param>
+        /// <param name="buffer">Buffer to write.</param>
+        public bool WriteBufferEnsureB(ulong addr, byte[] buffer)
+        {
+            const int RetryCount = 3;
 
+            try
+            {
+                bool success = false;
+                for (int i = 0; i < RetryCount; i++)
+                {
+                    WriteBuffer<byte>(addr, buffer);
+
+                    // Validate the bytes were written properly
+                    var validateBytes = ReadBufferEnsureE(addr, buffer.Length);
+
+                    if (validateBytes is null || !validateBytes.SequenceEqual(buffer))
+                    {
+                        LoneLogging.WriteLine($"[WARN] WriteBufferEnsure() -> 0x{addr:X} did not pass validation on try {i + 1}!");
+                        success = false;
+                        continue;
+                    }
+
+                    success = true;
+                    break;
+                }
+
+                return success;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[DMA] ERROR writing bytes at 0x{addr:X}", ex);
+            }
+        }
         #endregion
 
         #region Misc

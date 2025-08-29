@@ -1,17 +1,18 @@
-﻿using eft_dma_radar.Tarkov.EFTPlayer;
-using System.Collections.Frozen;
+﻿using eft_dma_radar;
+using eft_dma_radar.Tarkov.EFTPlayer;
+using eft_dma_radar.UI.ESP;
+using eft_dma_radar.UI.Misc;
+using eft_dma_radar.UI.Pages;
+using eft_dma_shared.Common.ESP;
+using eft_dma_shared.Common.Maps;
+using eft_dma_shared.Common.Misc;
+using eft_dma_shared.Common.Misc.Data;
+using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.Collections;
-using eft_dma_shared.Common.Maps;
-using eft_dma_shared.Common.Players;
-using eft_dma_shared.Common.ESP;
-using eft_dma_shared.Common.Misc.Data;
-using eft_dma_shared.Common.Misc;
-using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.ESP;
-using eft_dma_radar.UI.Pages;
-using eft_dma_radar;
+using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Security.AccessControl;
 
 namespace eft_dma_radar.Tarkov.GameWorld
 {
@@ -75,6 +76,11 @@ namespace eft_dma_radar.Tarkov.GameWorld
         /// All currently active quests with their objectives and completion status.
         /// </summary>
         public IReadOnlyList<Quest> ActiveQuests { get; private set; } = new List<Quest>();
+
+        /// <summary>
+        /// Contains IDs of all started quests (including blacklisted ones) for UI purposes only.
+        /// </summary>
+        public IReadOnlySet<string> AllStartedQuestIds { get; private set; } = new HashSet<string>();
 
         /// <summary>
         /// Contains all item IDs that are required for incomplete quest objectives.
@@ -163,6 +169,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             var allRequiredItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var allLocationConditions = new List<QuestLocation>();
             var allCompletedConditions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allStartedQuestIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var questsData = Memory.ReadPtr(_profile + Offsets.Profile.QuestsData);
             using var questsDataList = MemList<ulong>.Get(questsData);
@@ -178,8 +185,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                     var qIDPtr = Memory.ReadPtr(qDataEntry + Offsets.QuestData.Id);
                     var qID = Memory.ReadUnityString(qIDPtr);
 
-                    if (Config.QuestHelper.BlacklistedQuests.Contains(qID, StringComparer.OrdinalIgnoreCase))
-                        continue;
+                    allStartedQuestIds.Add(qID);
 
                     if (Config.QuestHelper.KappaFilter &&
                         EftDataManager.TaskData.TryGetValue(qID, out var taskElement) &&
@@ -187,6 +193,9 @@ namespace eft_dma_radar.Tarkov.GameWorld
                     {
                         continue;
                     }
+
+                    if (Config.QuestHelper.BlacklistedQuests.Contains(qID, StringComparer.OrdinalIgnoreCase))
+                        continue;
 
                     var completedPtr = Memory.ReadPtr(qDataEntry + Offsets.QuestData.CompletedConditions);
                     using var completedHS = MemHashSet<Types.MongoID>.Get(completedPtr);
@@ -211,7 +220,8 @@ namespace eft_dma_radar.Tarkov.GameWorld
 
                         foreach (var objective in quest.Objectives)
                         {
-                            allLocationConditions.AddRange(objective.LocationObjectives);
+                            if (!objective.IsCompleted)
+                                allLocationConditions.AddRange(objective.LocationObjectives);
                         }
                     }
                 }
@@ -222,11 +232,12 @@ namespace eft_dma_radar.Tarkov.GameWorld
             }
 
             ActiveQuests = activeQuests;
+            AllStartedQuestIds = allStartedQuestIds;
             RequiredItems = allRequiredItems;
             LocationConditions = allLocationConditions;
             AllCompletedConditions = allCompletedConditions;
 
-            if (MainWindow.Window?.GeneralSettingsControl?.QuestItems?.Count != ActiveQuests.Count)
+            if (MainWindow.Window?.GeneralSettingsControl?.QuestItems?.Count != AllStartedQuestIds.Count)
                 MainWindow.Window?.GeneralSettingsControl?.RefreshQuestHelper();
 
             _rateLimit.Restart();
@@ -308,7 +319,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             }
         }
 
-        private void ParseQuestCondition(ulong condition, Quest quest, HashSet<string> completedConditions)
+        private void ParseQuestCondition(ulong condition, Quest quest, HashSet<string> completedConditions, bool completed = false)
         {
             try
             {
@@ -316,7 +327,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 var condID = Memory.ReadUnityString(condIDPtr.StringID);
                 var condName = ObjectClass.ReadName(condition);
 
-                var isCompleted = completedConditions.Contains(condID);
+                var isCompleted = completedConditions.Contains(condID) || completed;
                 var isOptional = false;
 
                 if (EftDataManager.TaskData.TryGetValue(quest.Id, out var taskData) && taskData.Objectives != null)
@@ -334,6 +345,10 @@ namespace eft_dma_radar.Tarkov.GameWorld
                     foreach (var targetPtr in targets)
                     {
                         var target = Memory.ReadUnityString(targetPtr);
+
+                        if (condName == "ConditionHandoverItem" && EftDataManager.AllItems.TryGetValue(target, out var itemData) && itemData.ShortName.StartsWith("Q_"))
+                            continue;
+
                         itemIds.Add(target);
                     }
 
@@ -401,7 +416,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                     using var counterList = MemList<ulong>.Get(conditionsListPtr);
 
                     foreach (var childCond in counterList)
-                        ParseQuestCondition(childCond, quest, completedConditions);
+                        ParseQuestCondition(childCond, quest, completedConditions, isCompleted);
                 }
                 else if (condName == "ConditionLaunchFlare")
                 {

@@ -2,6 +2,8 @@
 using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Unity.Collections;
+using eft_dma_radar.Tarkov.Features.MemoryWrites.Patches;
+using eft_dma_shared.Common.Unity.LowLevel.Hooks;
 
 namespace eft_dma_radar.Tarkov.GameWorld
 {
@@ -42,12 +44,14 @@ namespace eft_dma_radar.Tarkov.GameWorld
             {
                 using var playersList = MemList<ulong>.Get(this, false); // Realtime Read
                 var registered = playersList.Where(x => x != 0x0).ToHashSet();
-                /// Allocate New Players
+                int i = -1;
+                // Allocate New Players
                 foreach (var playerBase in registered)
                 {
                     if (playerBase == LocalPlayer) // Skip LocalPlayer, already allocated
                         continue;
-                    if (_players.TryGetValue(playerBase, out var existingPlayer)) // Player already exists, check for problems
+                    i++;
+                    if (_players.TryGetValue(playerBase, out var existingPlayer)) // Player already exists
                     {
                         if (existingPlayer.ErrorTimer.ElapsedMilliseconds >= 1500) // Erroring out a lot? Re-Alloc
                         {
@@ -57,17 +61,73 @@ namespace eft_dma_radar.Tarkov.GameWorld
                         // Nothing else needs to happen here
                     }
                     else // Add New Player
+                    {
+
                         Player.Allocate(_players, playerBase);
+                        LoneLogging.WriteLine($"New Player Allocated: {i} - {playerBase:X}");
+                        foreach(var player in _players.Values)
+                        {
+                            if (player.ListIndex == i) // Ensure ListIndex is set correctly
+                                continue;
+                            player.ListIndex = i; // Set ListIndex for new player
+                        }
+                    }
                 }
-                /// Update Existing Players incl LocalPlayer
+
+                // Update Existing Players including LocalPlayer
                 UpdateExistingPlayers(registered);
+
+                if (VisibilityLinecast.Initilized)
+                {
+                    try
+                    {
+                        var localPlayer = Memory.LocalPlayer;
+                        var viewDirection = Vector3.Normalize(RotationToDirection(localPlayer.Rotation));
+                        if (localPlayer?.Firearm?.FireportPosition is not Vector3 fireportPos)
+                        {
+                            //LoneLogging.WriteLine("[Visibility] No valid fireport position available");
+                            return;
+                        }
+
+                        // Get all active players from our managed collection (_players)
+                        var activePlayers = _players.Values
+                            .Where(p => p != null && p.IsActive && p.IsAlive && !(p is LocalPlayer))
+                            .ToList();
+
+                        if (activePlayers.Count == 0)
+                        {
+                            //LoneLogging.WriteLine("[Visibility] No active players to check");
+                            return;
+                        }
+
+                        //LoneLogging.WriteLine($"[Visibility] Checking visibility for {activePlayers.Count} players");
+                        VisibilityManager.UpdateVisibilityForPlayers(activePlayers, fireportPos, viewDirection);
+                    }
+                    catch (Exception ex)
+                    {
+                        LoneLogging.WriteLine($"[VisCheck] ERROR Updating Visibility: {ex}");
+                        NotificationsShared.Error("Error updating visibility! Check logs for details.");
+                    }
+                }                
             }
             catch (Exception ex)
             {
                 LoneLogging.WriteLine($"CRITICAL ERROR - RegisteredPlayers Loop FAILED: {ex}");
             }
         }
+        public static Vector3 RotationToDirection(Vector2 rotation)
+        {
+            // Convert rotation (yaw, pitch) to a direction vector
+            // This might need adjustments based on how you define rotation
+            var yaw = (float)rotation.X.ToRadians();
+            var pitch = (float)rotation.Y.ToRadians();
+            Vector3 direction;
+            direction.X = (float)(Math.Cos(pitch) * Math.Sin(yaw));
+            direction.Y = (float)Math.Sin(-pitch); // Negative pitch because in Unity, as pitch increases, we look down
+            direction.Z = (float)(Math.Cos(pitch) * Math.Cos(yaw));
 
+            return Vector3.Normalize(direction);
+        }
         /// <summary>
         /// Returns the Player Count currently in the Registered Players List.
         /// </summary>

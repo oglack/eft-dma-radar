@@ -23,11 +23,21 @@ namespace eft_dma_radar.Tarkov.WebRadar
         private static TimeSpan _tickRate;
         private static IHost _webHost;
 
+        private static CancellationTokenSource _workerCts;
+        private static Thread _workerThread;
+        private static bool _isRunning = false;
+        private static int _upnpPort = -1;
+
         /// <summary>
         /// Password for this Server.
         /// </summary>
         private static string _password = Utils.GetRandomPassword(10);
         public static string Password => _password;
+
+        /// <summary>
+        /// Gets whether the Web Radar Server is currently running.
+        /// </summary>
+        public static bool IsRunning => _isRunning;
 
         #region Public API
         /// <summary>
@@ -37,19 +47,19 @@ namespace eft_dma_radar.Tarkov.WebRadar
         /// <param name="port">TCP Port to bind to.</param>
         /// <param name="tickRate">How often radar updates should be broadcast.</param>
         /// <param name="upnp">True if Port Forwarding should be setup via UPnP.</param>
-        /// <summary>
-        /// Startup web server for Web Radar.
-        /// </summary>
-        /// <param name="ip">IP to bind to.</param>
-        /// <param name="port">TCP Port to bind to.</param>
-        /// <param name="tickRate">How often radar updates should be broadcast.</param>
-        /// <param name="upnp">True if Port Forwarding should be setup via UPnP.</param>
         public static async Task StartAsync(string ip, int port, TimeSpan tickRate, bool upnp)
         {
+            await StopAsync();
+
             _tickRate = tickRate;
             ThrowIfInvalidBindParameters(ip, port);
+
             if (upnp)
+            {
                 await ConfigureUPnPAsync(port);
+                _upnpPort = port;
+            }
+
             _webHost = Host.CreateDefaultBuilder()
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
@@ -106,13 +116,62 @@ namespace eft_dma_radar.Tarkov.WebRadar
                 })
                 .Build();
 
-            _webHost.Start();
+            await _webHost.StartAsync();
+            _isRunning = true;
 
-            // Start the background worker
-            new Thread(Worker)
+            _workerCts = new CancellationTokenSource();
+            _workerThread = new Thread(() => Worker(_workerCts.Token))
             {
                 IsBackground = true
-            }.Start();
+            };
+            _workerThread.Start();
+        }
+
+        /// <summary>
+        /// Stops the Web Radar Server.
+        /// </summary>
+        public static async Task StopAsync()
+        {
+            try
+            {
+                _isRunning = false;
+
+                if (_workerCts != null)
+                {
+                    _workerCts.Cancel();
+                    _workerCts.Dispose();
+                    _workerCts = null;
+                }
+
+                if (_workerThread != null && _workerThread.IsAlive)
+                {
+                    if (!_workerThread.Join(TimeSpan.FromSeconds(5)))
+                    {
+                        LoneLogging.WriteLine("[WebRadar] Worker thread did not stop gracefully");
+                    }
+                    _workerThread = null;
+                }
+
+                if (_webHost != null)
+                {
+                    await _webHost.StopAsync(TimeSpan.FromSeconds(5));
+                    _webHost.Dispose();
+                    _webHost = null;
+                }
+
+                if (_upnpPort != -1)
+                {
+                    await CleanupUPnPAsync(_upnpPort);
+                    _upnpPort = -1;
+                }
+
+                LoneLogging.WriteLine("[WebRadar] Server stopped successfully");
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[WebRadar] Error stopping server: {ex.Message}");
+                throw;
+            }
         }
 
         /// <summary>
@@ -261,27 +320,27 @@ namespace eft_dma_radar.Tarkov.WebRadar
         /// <summary>
         /// Web Radar Server Worker Thread.
         /// </summary>
-        private static async void Worker()
+        private static async void Worker(CancellationToken cancellationToken)
         {
-            var hubContext = _webHost.Services.GetRequiredService<IHubContext<RadarServerHub>>();
             var tickRate = _tickRate;
-        
-            while (true)
+
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    // Players
+                    var hubContext = _webHost?.Services?.GetRequiredService<IHubContext<RadarServerHub>>();
+                    if (hubContext == null)
+                        break;
+
                     if (Memory.InRaid && Memory.Players is IReadOnlyCollection<Player> players && players.Count > 0)
                     {
                         _update.InGame = true;
                         _update.MapID = Memory.MapID;
                         _update.Players = players.Select(p => WebRadarPlayer.CreateFromPlayer(p));
 
-                        // Loot
                         if (Memory.Loot?.UnfilteredLoot is IReadOnlyCollection<LootItem> loot && loot.Count > 0)
                         {
                             _update.Loot = loot.Select(l => WebRadarLoot.CreateFromLoot(l));
-                            //LoneLogging.WriteLine($"[WebRadar] Found {loot.Count} loot items.");
                         }
                         else
                         {
@@ -291,8 +350,6 @@ namespace eft_dma_radar.Tarkov.WebRadar
                         if (Memory.Game?.Interactables != null)
                         {
                             _update.Doors = Memory.Game?.Interactables._Doors?.Select(x => WebRadarDoor.CreateFromDoor(x));
-                            int doorsCount = Memory.Game?.Interactables._Doors?.Count ?? 0;
-                            //LoneLogging.WriteLine($"[WebRadar] Found {doorsCount} doors.");
                         }
                     }
                     else
@@ -305,17 +362,28 @@ namespace eft_dma_radar.Tarkov.WebRadar
 
                     _update.Version++;
 
-                    // Send update to all connected clients
-                    await hubContext.Clients.All.SendAsync("RadarUpdate", _update);
+                    await hubContext.Clients.All.SendAsync("RadarUpdate", _update, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Worker] Error: {ex.Message}");
+                    LoneLogging.WriteLine($"[WebRadar Worker] Error: {ex.Message}");
                 }
-        
-                // Wait for the next update
-                _waitTimer.AutoWait(tickRate);
+
+                try
+                {
+                    await Task.Delay(tickRate, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
+
+            LoneLogging.WriteLine("[WebRadar] Worker thread stopped");
         }
 
         /// <summary>
@@ -355,12 +423,30 @@ namespace eft_dma_radar.Tarkov.WebRadar
             {
                 var upnp = await GetNatDeviceAsync();
 
-                // Create New Mapping
                 await upnp.CreatePortMapAsync(new Mapping(Protocol.Tcp, port, port, 86400, "Lone Web Radar"));
+                LoneLogging.WriteLine($"[WebRadar] UPnP port forwarding configured for port {port}");
             }
             catch (Exception ex)
             {
                 throw new Exception($"ERROR Setting up UPnP: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Cleans up UPnP Port Forwarding for the specified port.
+        /// </summary>
+        /// <param name="port">Port to remove forwarding for.</param>
+        private static async Task CleanupUPnPAsync(int port)
+        {
+            try
+            {
+                var upnp = await GetNatDeviceAsync();
+                await upnp.DeletePortMapAsync(new Mapping(Protocol.Tcp, port, port, "Lone Web Radar"));
+                LoneLogging.WriteLine($"[WebRadar] UPnP port forwarding removed for port {port}");
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[WebRadar] Error cleaning up UPnP for port {port}: {ex.Message}");
             }
         }
 

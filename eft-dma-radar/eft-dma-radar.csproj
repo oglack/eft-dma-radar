@@ -99,9 +99,6 @@
 		<Content Include="..\resources\SoldierInVis.obj">
  			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
  		</Content>
-		<Content Include="..\resources\SoldierVis.obj">
- 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
- 		</Content>
 		<Content Include="..\resources\ESPModel.obj">
  			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
  		</Content>

@@ -22,7 +22,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Source="{StaticResource AppIconImage}" Width="24" Height="24" Margin="10,0,0,0"/>
-            <TextBlock Grid.Column="1" Text="EFT DMA Radar" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <TextBlock x:Name="TitleTextBlock" Grid.Column="1" Text="EFT DMA Radar" VerticalAlignment="Center" Margin="10,0,0,0"/>
         </Grid>
     </hc:Window.NonClientAreaContent>
 
@@ -177,9 +177,19 @@
                             hc:IconElement.Geometry="{StaticResource ArrowsRotateGeometry}"
                             Click="btnRestart_Click"/>
 
-                    <Rectangle Width="1" Height="24" Fill="{DynamicResource BorderBrush}" Opacity="0.7" Margin="3,0"/>
+                    <Rectangle Width="1" Height="24" Fill="{DynamicResource BorderBrush}" Opacity="0.7" Margin="3,0" Visibility="Collapsed"/>
 
-                    <!--ESP / Cham preview panel-->
+                    <Button x:Name="btnSearchSettings" Visibility="Collapsed"
+                            Style="{StaticResource ButtonIcon}"
+                            ToolTip="Search settings (Ctrl+F)"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Width="32" Height="32"
+                            Padding="6"
+                            hc:IconElement.Width="18"
+                            hc:IconElement.Geometry="{StaticResource SearchGeometry}"
+                            Click="btnSettingsSearch_Click"/>
+                    
                     <Button x:Name="btnPlayerPreview" Visibility="Collapsed"
                             Style="{StaticResource ButtonIcon}" 
                             ToolTip="Opens Player Preview Panel"
@@ -337,7 +347,23 @@
                 <local:PlayerPreviewControl x:Name="PlayerPreviewControl"/>
             </Border>
         </Canvas>
-        
+        <!-- settings search panel -->
+        <Canvas Name="SettingsSearchCanvas" Panel.ZIndex="1000">
+          <Canvas.Resources>
+            <DropShadowEffect x:Key="PanelShadow" BlurRadius="15" ShadowDepth="5" Direction="315" Color="Black" Opacity="0.5"/>
+          </Canvas.Resources>
+
+          <Border x:Name="SettingsSearchPanel"
+                  Width="420" Height="560"
+                  Canvas.Left="760" Canvas.Top="60"
+                  CornerRadius="8"
+                  Visibility="Collapsed"
+                  Effect="{StaticResource PanelShadow}"
+                  Background="Transparent"
+                  BorderThickness="0">
+            <local:SettingsSearchControl x:Name="SettingsSearchControl"/>
+          </Border>
+        </Canvas>       
         <!-- map setup panel -->
         <Canvas Name="MapSetupCanvas" Panel.ZIndex="1000">
             <Canvas.Resources>

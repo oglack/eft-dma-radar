@@ -3,6 +3,7 @@ using eft_dma_radar.UI.LootFilters;
 using eft_dma_radar.UI.Misc;
 using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
+using eft_dma_shared.Common.UI.Controls;
 using HandyControl.Controls;
 using HandyControl.Tools;
 using SkiaSharp;
@@ -13,7 +14,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.Unicode;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -24,10 +27,18 @@ using CheckBox = System.Windows.Controls.CheckBox;
 using Clipboard = System.Windows.Clipboard;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
+using Cursors = System.Windows.Input.Cursors;
+using DataObject = System.Windows.DataObject;
+using DragDropEffects = System.Windows.DragDropEffects;
+using DragEventArgs = System.Windows.DragEventArgs;
+using ListView = System.Windows.Controls.ListView;
+using ListViewItem = System.Windows.Controls.ListViewItem;
+using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Orientation = System.Windows.Controls.Orientation;
 using Point = System.Windows.Point;
 using UserControl = System.Windows.Controls.UserControl;
-using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
+using Window = HandyControl.Controls.Window;
 
 namespace eft_dma_radar.UI.Pages
 {
@@ -40,6 +51,7 @@ namespace eft_dma_radar.UI.Pages
         public static bool ShowMeds;
         public static bool ShowFood;
         public static bool ShowBackpacks;
+        public static bool ShowWeapons;
         public static bool firstRemove = false;
         private static Config Config => Program.Config;
         private static bool ShowQuestItems => Config.QuestHelper.Enabled;
@@ -50,6 +62,16 @@ namespace eft_dma_radar.UI.Pages
         private ICollectionView _groupItemsView;
 
         private Point _dragStartPoint;
+
+        private bool _isDragging = false;
+        private LootFilterGroup _draggedGroup = null;
+        private ListViewItem _draggedItem = null;
+        private int _insertIndex = -1;
+
+        private bool _isItemDragging = false;
+        private GroupedLootFilterEntry _draggedLootItem = null;
+        private ListViewItem _draggedLootItemContainer = null;
+        private int _itemInsertIndex = -1;
 
         private const int INTERVAL = 100; // 0.1 second
         private const string DEFAULT_GROUP_NAME = "default";
@@ -62,6 +84,19 @@ namespace eft_dma_radar.UI.Pages
         public event EventHandler BringToFrontRequested;
         public event EventHandler<PanelDragEventArgs> DragRequested;
         public event EventHandler<PanelResizeEventArgs> ResizeRequested;
+
+        public LootFilterGroup SelectedGroup
+        {
+            get => _selectedGroup;
+            set
+            {
+                if (_selectedGroup != value)
+                {
+                    SetSelectedGroup(value);
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         private HandyControl.Controls.PopupWindow _openColorPicker;
         #endregion
@@ -105,6 +140,7 @@ namespace eft_dma_radar.UI.Pages
             {
                 RegisterPanelEvents();
                 RegisterSettingsEvents();
+                RegisterDragDropEvents();
             });
         }
 
@@ -115,6 +151,428 @@ namespace eft_dma_radar.UI.Pages
 
             // Drag handling
             DragHandle.MouseLeftButtonDown += DragHandle_MouseLeftButtonDown;
+        }
+
+        private void RegisterDragDropEvents()
+        {
+            // Filter Groups Drag & Drop
+            lstFilterGroups.PreviewMouseLeftButtonDown += lstFilterGroups_PreviewMouseLeftButtonDown;
+            lstFilterGroups.PreviewMouseMove += lstFilterGroups_PreviewMouseMove;
+            lstFilterGroups.PreviewMouseLeftButtonUp += lstFilterGroups_PreviewMouseLeftButtonUp;
+            lstFilterGroups.DragOver += lstFilterGroups_DragOver;
+            lstFilterGroups.Drop += lstFilterGroups_Drop;
+
+            // Loot Items Drag & Drop
+            GroupedItemsListView.PreviewMouseLeftButtonDown += GroupedItemsListView_PreviewMouseLeftButtonDown;
+            GroupedItemsListView.PreviewMouseMove += GroupedItemsListView_PreviewMouseMove;
+            GroupedItemsListView.PreviewMouseLeftButtonUp += GroupedItemsListView_PreviewMouseLeftButtonUp;
+            GroupedItemsListView.DragOver += GroupedItemsListView_DragOver;
+            GroupedItemsListView.Drop += GroupedItemsListView_Drop;
+        }
+        #endregion
+
+        #region Filter Groups Drag and Drop Implementation
+        private void lstFilterGroups_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(lstFilterGroups);
+
+            var hitTest = VisualTreeHelper.HitTest(lstFilterGroups, _dragStartPoint);
+            if (hitTest?.VisualHit != null)
+            {
+                var listViewItem = FindParent<ListViewItem>(hitTest.VisualHit);
+                if (listViewItem?.DataContext is LootFilterGroup group)
+                {
+                    var hitElement = hitTest.VisualHit as FrameworkElement;
+                    var dragHandle = hitElement;
+
+                    while (dragHandle != null)
+                    {
+                        if ((dragHandle is Border border && border.Cursor == Cursors.SizeAll) ||
+                            (dragHandle is System.Windows.Shapes.Path shapePath && FindParent<Border>(shapePath)?.Cursor == Cursors.SizeAll))
+                        {
+                            _draggedGroup = group;
+                            _draggedItem = listViewItem;
+                            break;
+                        }
+                        dragHandle = VisualTreeHelper.GetParent(dragHandle) as FrameworkElement;
+                    }
+                }
+            }
+        }
+
+        private void lstFilterGroups_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed &&
+                _draggedGroup != null &&
+                !_isDragging)
+            {
+                var currentPosition = e.GetPosition(lstFilterGroups);
+                var diff = _dragStartPoint - currentPosition;
+
+                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    _isDragging = true;
+                    var dragData = new DataObject("LootFilterGroup", _draggedGroup);
+
+                    if (_draggedItem != null)
+                        _draggedItem.Opacity = 0.5;
+
+                    var result = DragDrop.DoDragDrop(lstFilterGroups, dragData, DragDropEffects.Move);
+
+                    if (_draggedItem != null)
+                        _draggedItem.Opacity = 1.0;
+
+                    _isDragging = false;
+                    _draggedGroup = null;
+                    _draggedItem = null;
+                }
+            }
+        }
+
+        private void lstFilterGroups_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _draggedGroup = null;
+            _draggedItem = null;
+        }
+
+        private void lstFilterGroups_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+
+            if (e.Data.GetDataPresent("LootFilterGroup"))
+            {
+                e.Effects = DragDropEffects.Move;
+
+                var position = e.GetPosition(lstFilterGroups);
+                _insertIndex = GetInsertIndex(lstFilterGroups, position);
+
+                UpdateGroupDropIndicators(_insertIndex);
+            }
+
+            e.Handled = true;
+        }
+
+        private void lstFilterGroups_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("LootFilterGroup") &&
+                e.Data.GetData("LootFilterGroup") is LootFilterGroup draggedGroup &&
+                _insertIndex >= 0)
+            {
+                PerformGroupReorder(draggedGroup, _insertIndex);
+            }
+
+            ClearGroupDropIndicators();
+            _insertIndex = -1;
+
+            e.Handled = true;
+        }
+
+        private void UpdateGroupDropIndicators(int insertIndex)
+        {
+            ClearGroupDropIndicators();
+
+            if (insertIndex >= 0 && insertIndex < lstFilterGroups.Items.Count)
+            {
+                var container = lstFilterGroups.ItemContainerGenerator.ContainerFromIndex(insertIndex) as ListViewItem;
+                if (container != null)
+                {
+                    var indicator = FindChild<Border>(container, "TopDropIndicator");
+                    if (indicator != null)
+                        indicator.Visibility = Visibility.Visible;
+                }
+            }
+            else if (insertIndex == lstFilterGroups.Items.Count && lstFilterGroups.Items.Count > 0)
+            {
+                var container = lstFilterGroups.ItemContainerGenerator.ContainerFromIndex(lstFilterGroups.Items.Count - 1) as ListViewItem;
+                if (container != null)
+                {
+                    var indicator = FindChild<Border>(container, "BottomDropIndicator");
+                    if (indicator != null)
+                        indicator.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void ClearGroupDropIndicators()
+        {
+            for (int i = 0; i < lstFilterGroups.Items.Count; i++)
+            {
+                var container = lstFilterGroups.ItemContainerGenerator.ContainerFromIndex(i) as ListViewItem;
+                if (container != null)
+                {
+                    var topIndicator = FindChild<Border>(container, "TopDropIndicator");
+                    var bottomIndicator = FindChild<Border>(container, "BottomDropIndicator");
+
+                    if (topIndicator != null) topIndicator.Visibility = Visibility.Collapsed;
+                    if (bottomIndicator != null) bottomIndicator.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void PerformGroupReorder(LootFilterGroup draggedGroup, int newIndex)
+        {
+            if (draggedGroup == null)
+                return;
+
+            var currentIndex = _groupList.IndexOf(draggedGroup);
+            if (currentIndex == -1 || currentIndex == newIndex)
+                return;
+
+            if (newIndex > currentIndex)
+                newIndex--;
+
+            LoneLogging.WriteLine($"[Filters] Reordering '{draggedGroup.Name}' from index {currentIndex} to {newIndex}");
+
+            _groupList.RemoveAt(currentIndex);
+            LootFilterManager.CurrentGroups.Groups.RemoveAt(currentIndex);
+
+            _groupList.Insert(newIndex, draggedGroup);
+            LootFilterManager.CurrentGroups.Groups.Insert(newIndex, draggedGroup);
+
+            for (int i = 0; i < _groupList.Count; i++)
+            {
+                _groupList[i].Index = i;
+            }
+
+            OnPropertyChanged(nameof(GroupList));
+            lstFilterGroups.SelectedItem = draggedGroup;
+
+            LootFilterManager.Save();
+
+            NotificationsShared.Info($"[Filters] Moved '{draggedGroup.Name}' to priority {newIndex}");
+        }
+        #endregion
+
+        #region Loot Items Drag and Drop Implementation
+        private void GroupedItemsListView_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(GroupedItemsListView);
+
+            var hitTest = VisualTreeHelper.HitTest(GroupedItemsListView, _dragStartPoint);
+            if (hitTest?.VisualHit != null)
+            {
+                var listViewItem = FindParent<ListViewItem>(hitTest.VisualHit);
+                if (listViewItem?.DataContext is GroupedLootFilterEntry item)
+                {
+                    var hitElement = hitTest.VisualHit as FrameworkElement;
+                    var dragHandle = hitElement;
+
+                    while (dragHandle != null)
+                    {
+                        if ((dragHandle is Border border && border.Cursor == Cursors.SizeAll) ||
+                            (dragHandle is System.Windows.Shapes.Path shapePath && FindParent<Border>(shapePath)?.Cursor == Cursors.SizeAll))
+                        {
+                            _draggedLootItem = item;
+                            _draggedLootItemContainer = listViewItem;
+                            break;
+                        }
+                        dragHandle = VisualTreeHelper.GetParent(dragHandle) as FrameworkElement;
+                    }
+                }
+            }
+        }
+
+        private void GroupedItemsListView_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed &&
+                _draggedLootItem != null &&
+                !_isItemDragging)
+            {
+                var currentPosition = e.GetPosition(GroupedItemsListView);
+                var diff = _dragStartPoint - currentPosition;
+
+                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    _isItemDragging = true;
+                    var dragData = new DataObject("GroupedLootFilterEntry", _draggedLootItem);
+
+                    if (_draggedLootItemContainer != null)
+                        _draggedLootItemContainer.Opacity = 0.5;
+
+                    var result = DragDrop.DoDragDrop(GroupedItemsListView, dragData, DragDropEffects.Move);
+
+                    if (_draggedLootItemContainer != null)
+                        _draggedLootItemContainer.Opacity = 1.0;
+
+                    _isItemDragging = false;
+                    _draggedLootItem = null;
+                    _draggedLootItemContainer = null;
+                }
+            }
+        }
+
+        private void GroupedItemsListView_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _draggedLootItem = null;
+            _draggedLootItemContainer = null;
+        }
+
+        private void GroupedItemsListView_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+
+            if (e.Data.GetDataPresent("GroupedLootFilterEntry"))
+            {
+                e.Effects = DragDropEffects.Move;
+
+                var position = e.GetPosition(GroupedItemsListView);
+                _itemInsertIndex = GetInsertIndex(GroupedItemsListView, position);
+
+                UpdateItemDropIndicators(_itemInsertIndex);
+            }
+
+            e.Handled = true;
+        }
+
+        private void GroupedItemsListView_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("GroupedLootFilterEntry") &&
+                e.Data.GetData("GroupedLootFilterEntry") is GroupedLootFilterEntry draggedItem &&
+                _itemInsertIndex >= 0)
+            {
+                PerformItemReorder(draggedItem, _itemInsertIndex);
+            }
+
+            ClearItemDropIndicators();
+            _itemInsertIndex = -1;
+
+            e.Handled = true;
+        }
+
+        private void UpdateItemDropIndicators(int insertIndex)
+        {
+            ClearItemDropIndicators();
+
+            if (insertIndex >= 0 && insertIndex < GroupedItemsListView.Items.Count)
+            {
+                var container = GroupedItemsListView.ItemContainerGenerator.ContainerFromIndex(insertIndex) as ListViewItem;
+                if (container != null)
+                {
+                    var indicator = FindChild<Border>(container, "TopDropIndicator");
+                    if (indicator != null)
+                        indicator.Visibility = Visibility.Visible;
+                }
+            }
+            else if (insertIndex == GroupedItemsListView.Items.Count && GroupedItemsListView.Items.Count > 0)
+            {
+                var container = GroupedItemsListView.ItemContainerGenerator.ContainerFromIndex(GroupedItemsListView.Items.Count - 1) as ListViewItem;
+                if (container != null)
+                {
+                    var indicator = FindChild<Border>(container, "BottomDropIndicator");
+                    if (indicator != null)
+                        indicator.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void ClearItemDropIndicators()
+        {
+            for (int i = 0; i < GroupedItemsListView.Items.Count; i++)
+            {
+                var container = GroupedItemsListView.ItemContainerGenerator.ContainerFromIndex(i) as ListViewItem;
+                if (container != null)
+                {
+                    var topIndicator = FindChild<Border>(container, "TopDropIndicator");
+                    var bottomIndicator = FindChild<Border>(container, "BottomDropIndicator");
+
+                    if (topIndicator != null)
+                        topIndicator.Visibility = Visibility.Collapsed;
+
+                    if (bottomIndicator != null)
+                        bottomIndicator.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void PerformItemReorder(GroupedLootFilterEntry draggedItem, int newIndex)
+        {
+            if (draggedItem == null || _selectedGroup == null)
+                return;
+
+            var currentIndex = _groupItems.IndexOf(draggedItem);
+            if (currentIndex == -1 || currentIndex == newIndex)
+                return;
+
+            if (newIndex > currentIndex)
+                newIndex--;
+
+            LoneLogging.WriteLine($"[Filters] Reordering '{draggedItem.Name}' from index {currentIndex} to {newIndex} in group '{_selectedGroup.Name}'");
+
+            _groupItems.RemoveAt(currentIndex);
+            _selectedGroup.Items.RemoveAt(currentIndex);
+
+            _groupItems.Insert(newIndex, draggedItem);
+            _selectedGroup.Items.Insert(newIndex, draggedItem);
+
+            LootFilterManager.Save();
+
+            NotificationsShared.Info($"[Filters] Moved '{draggedItem.Name}' within group '{_selectedGroup.Name}'");
+        }
+        #endregion
+
+        #region Shared Drag & Drop Helper Methods
+        private int GetInsertIndex(ListView listView, Point position)
+        {
+            for (int i = 0; i < listView.Items.Count; i++)
+            {
+                var container = listView.ItemContainerGenerator.ContainerFromIndex(i) as ListViewItem;
+                if (container != null)
+                {
+                    var containerPosition = container.TranslatePoint(new Point(0, 0), listView);
+                    var containerBounds = new Rect(containerPosition, container.RenderSize);
+
+                    if (position.Y < containerBounds.Top + containerBounds.Height / 2)
+                        return i;
+                }
+            }
+
+            return listView.Items.Count;
+        }
+
+        private static T FindParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var parentObject = VisualTreeHelper.GetParent(child);
+            if (parentObject == null)
+                return null;
+
+            if (parentObject is T parent)
+                return parent;
+
+            return FindParent<T>(parentObject);
+        }
+
+        private static T FindChild<T>(DependencyObject parent, string childName = null) where T : DependencyObject
+        {
+            if (parent == null)
+                return null;
+
+            T foundChild = null;
+            int childrenCount = VisualTreeHelper.GetChildrenCount(parent);
+
+            for (int i = 0; i < childrenCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+
+                if (child is T typedChild)
+                {
+                    if (string.IsNullOrEmpty(childName) ||
+                        (child is FrameworkElement fe && fe.Name == childName))
+                    {
+                        foundChild = typedChild;
+                        break;
+                    }
+                }
+                else
+                {
+                    foundChild = FindChild<T>(child, childName);
+                    if (foundChild != null)
+                        break;
+                }
+            }
+
+            return foundChild;
         }
         #endregion
 
@@ -203,26 +661,30 @@ namespace eft_dma_radar.UI.Pages
             mnuExportAll.Click += LootFilterMenuItem_Click;
             mnuImport.Click += LootFilterMenuItem_Click;
 
-            cboLootFilters.SelectionChanged += cboLootFilters_SelectionChanged;
+            lstFilterGroups.SelectionChanged += lstFilterGroups_SelectionChanged;
             btnRemoveGroup.Click += LootFilterButton_Click;
             btnAddGroup.Click += LootFilterButton_Click;
 
-            chkEnabled.Checked += LootFilterCheckbox_CheckChanged;
-            chkEnabled.Unchecked += LootFilterCheckbox_CheckChanged;
             chkStatic.Checked += LootFilterCheckbox_CheckChanged;
             chkStatic.Unchecked += LootFilterCheckbox_CheckChanged;
             chkNotify.Checked += LootFilterCheckbox_CheckChanged;
             chkNotify.Unchecked += LootFilterCheckbox_CheckChanged;
 
             nudNotifyTime.ValueChanged += LootFilterNumericUpDown_ValueChanged;
-            nudGroupIndex.ValueChanged += LootFilterNumericUpDown_ValueChanged;
-
             txtGroupName.TextChanged += LootFilterTextBox_TextChanged;
 
             // Loot Filter Items
             btnAddItem.Click += LootFilterButton_Click;
             btnRemoveItem.Click += LootFilterButton_Click;
             txtItemSearch.TextChanged += LootFilterTextBox_TextChanged;
+
+            // Bulk Actions
+            btnBulkColor.Click += LootFilterButton_Click;
+            btnBulkEnable.Click += LootFilterButton_Click;
+            btnBulkDisable.Click += LootFilterButton_Click;
+            btnBulkNotify.Click += LootFilterButton_Click;
+
+            GroupedItemsListView.SelectionChanged += GroupedItemsListView_SelectionChanged;
         }
 
         private void LoadSettings()
@@ -241,10 +703,13 @@ namespace eft_dma_radar.UI.Pages
 
             if (_groupList.Count > 0)
             {
-                cboLootFilters.ItemsSource = _groupList;
-                cboLootFilters.SelectedIndex = 0;
-
                 SetSelectedGroup(_groupList[0]);
+
+                Dispatcher.BeginInvoke(() =>
+                {
+                    lstFilterGroups.SelectedItem = _groupList[0];
+                    lstFilterGroups.Focus();
+                }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
 
             if (cboItems.Items.Count < 1)
@@ -316,10 +781,7 @@ namespace eft_dma_radar.UI.Pages
 
             try
             {
-                nudGroupIndex.Maximum = Math.Max(0, _groupList.Count - 1);
-                nudGroupIndex.Value = _selectedGroup.Index;
                 txtGroupName.Text = _selectedGroup.Name;
-                chkEnabled.IsChecked = _selectedGroup.Enabled;
                 chkStatic.IsChecked = _selectedGroup.IsStatic;
                 chkNotify.IsChecked = _selectedGroup.Notify;
                 nudNotifyTime.Value = _selectedGroup.NotTime;
@@ -361,15 +823,11 @@ namespace eft_dma_radar.UI.Pages
 
             txtNewGroupName.Text = "";
 
-            var tempList = new List<LootFilterGroup>(_groupList);
-            cboLootFilters.ItemsSource = null;
-            cboLootFilters.ItemsSource = tempList;
-            cboLootFilters.SelectedItem = newGroup;
-
-            nudGroupIndex.Maximum = Math.Max(0, _groupList.Count - 1);
+            OnPropertyChanged(nameof(GroupList));
+            lstFilterGroups.SelectedItem = newGroup;
         }
 
-        private void RemoveGroup()
+        public void RemoveGroup()
         {
             if (_selectedGroup == null)
                 return;
@@ -386,17 +844,16 @@ namespace eft_dma_radar.UI.Pages
 
                 if (_groupList.Count > 1)
                 {
-                    int currentIndex = cboLootFilters.SelectedIndex;
+                    int currentIndex = lstFilterGroups.SelectedIndex;
                     int newIndex = (currentIndex > 0) ? currentIndex - 1 : 0;
 
                     if (currentIndex == 0 && _groupList.Count > 1)
                         newIndex = 1;
 
-                    cboLootFilters.SelectedIndex = newIndex;
+                    lstFilterGroups.SelectedIndex = newIndex;
                 }
 
                 _groupList.Remove(groupToRemove);
-
                 LootFilterManager.CurrentGroups.Groups.Remove(groupToRemove);
 
                 if (_groupList.Count == 0)
@@ -405,24 +862,11 @@ namespace eft_dma_radar.UI.Pages
                 RenumberGroupIndices();
                 LootFilterManager.Save();
 
-                var tempList = new List<LootFilterGroup>(_groupList);
-                cboLootFilters.ItemsSource = null;
-                cboLootFilters.ItemsSource = tempList;
+                OnPropertyChanged(nameof(GroupList));
 
-                if (_groupList.Count > 0 && cboLootFilters.SelectedItem == null)
-                    cboLootFilters.SelectedIndex = 0;
-
-                nudGroupIndex.Maximum = Math.Max(0, _groupList.Count - 1);
+                if (_groupList.Count > 0 && lstFilterGroups.SelectedItem == null)
+                    lstFilterGroups.SelectedIndex = 0;
             }
-        }
-
-        private void ToggleFilter()
-        {
-            if (_isUpdatingControls || _selectedGroup == null)
-                return;
-
-            _selectedGroup.Enabled = chkEnabled.IsChecked ?? false;
-            SaveLootFilter();
         }
 
         private void ToggleStatic()
@@ -445,35 +889,10 @@ namespace eft_dma_radar.UI.Pages
 
         private void RenumberGroupIndices()
         {
-            var sortedGroups = _groupList.OrderBy(g => g.Index).ToList();
-
-            for (int i = 0; i < sortedGroups.Count; i++)
+            for (int i = 0; i < _groupList.Count; i++)
             {
-                sortedGroups[i].Index = i;
+                _groupList[i].Index = i;
             }
-        }
-
-        private void ResortGroups(LootFilterGroup groupToKeepSelected = null)
-        {
-            var groupToSelect = groupToKeepSelected ?? _selectedGroup;
-            var sortedList = _groupList.OrderBy(g => g.Index).ToList();
-
-            _groupList.Clear();
-
-            foreach (var group in sortedList)
-            {
-                _groupList.Add(group);
-            }
-
-            LootFilterManager.CurrentGroups.Groups.Clear();
-            LootFilterManager.CurrentGroups.Groups.AddRange(sortedList);
-
-            var tempCbo = cboLootFilters;
-            tempCbo.ItemsSource = null;
-            tempCbo.ItemsSource = _groupList;
-
-            if (groupToSelect != null)
-                tempCbo.SelectedItem = groupToSelect;
         }
 
         private void AddItemToGroup()
@@ -511,7 +930,9 @@ namespace eft_dma_radar.UI.Pages
                 ItemID = itemID,
                 Enabled = true,
                 Color = "#FF2CF243",
-                IsStatic = _selectedGroup.IsStatic
+                IsStatic = _selectedGroup.IsStatic,
+                Note = "",
+                Blacklist = false
             };
 
             _selectedGroup.Items.Add(entry);
@@ -525,37 +946,76 @@ namespace eft_dma_radar.UI.Pages
             txtItemSearch.Text = "";
         }
 
-        private void RemoveItemFromGroup()
+        public void RemoveItemFromGroup()
         {
             if (_selectedGroup == null)
                 return;
 
-            if (GroupedItemsListView.SelectedItem is GroupedLootFilterEntry selectedEntry)
-            {
-                var result = MessageBox.Show(
-                    $"Are you sure you want to remove '{selectedEntry.Name}' from this group?",
-                    "Confirm Removal",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+            var selectedItems = GroupedItemsListView.SelectedItems.Cast<GroupedLootFilterEntry>().ToList();
 
-                if (result == MessageBoxResult.Yes)
+            if (selectedItems.Count == 0)
+            {
+                NotificationsShared.Warning("[Filters] Please select one or more items to remove");
+                return;
+            }
+
+            var itemNames = selectedItems.Count == 1
+                ? $"'{selectedItems[0].Name}'"
+                : $"{selectedItems.Count} items";
+
+            var result = MessageBox.Show(
+                $"Are you sure you want to remove {itemNames} from this group?",
+                "Confirm Removal",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                foreach (var selectedEntry in selectedItems)
                 {
                     selectedEntry.PropertyChanged -= OnItemChanged;
-
                     _groupItems.Remove(selectedEntry);
-                    _selectedGroup.Items.Clear();
-                    _selectedGroup.Items.AddRange(_groupItems);
-
-                    LootFilterManager.Save();
-                    NotificationsShared.Info($"[Filters] Removed {selectedEntry.Name} from group: {_selectedGroup.Name}");
                 }
-            }
-            else
-            {
-                NotificationsShared.Warning("[Filters] Please select an item to remove");
+
+                _selectedGroup.Items.Clear();
+                _selectedGroup.Items.AddRange(_groupItems);
+
+                LootFilterManager.Save();
+
+                var message = selectedItems.Count == 1
+                    ? $"[Filters] Removed {selectedItems[0].Name} from group: {_selectedGroup.Name}"
+                    : $"[Filters] Removed {selectedItems.Count} items from group: {_selectedGroup.Name}";
+
+                NotificationsShared.Info(message);
             }
         }
+        public bool HandleDeleteKey()
+        {
+            if (GroupedItemsListView.IsKeyboardFocusWithin &&
+                GroupedItemsListView.SelectedItems?.Count > 0)
+            {
+                RemoveItemFromGroup();
+                return true;
+            }
+            if (lstFilterGroups.IsKeyboardFocusWithin && _selectedGroup != null)
+            {
+                RemoveGroup();
+                return true;
+            }
+            if (GroupedItemsListView.SelectedItems?.Count > 0)
+            {
+                RemoveItemFromGroup();
+                return true;
+            }
+            if (_selectedGroup != null)
+            {
+                RemoveGroup();
+                return true;
+            }
 
+            return false;
+        }
+        
         private void SearchForItem()
         {
             var query = txtItemSearch.Text.ToLowerInvariant();
@@ -589,56 +1049,9 @@ namespace eft_dma_radar.UI.Pages
 
             SaveLootFilter();
 
-            var selectedItem = cboLootFilters.SelectedItem;
-            cboLootFilters.Items.Refresh();
-            cboLootFilters.SelectedItem = selectedItem;
-        }
-
-        private void EditFilterIndex(int value)
-        {
-            if (_isUpdatingControls || _selectedGroup == null)
-                return;
-
-            var newIndex = value;
-            var oldIndex = _selectedGroup.Index;
-
-            if (newIndex != oldIndex)
-            {
-                LoneLogging.WriteLine($"[Filters] Changing group '{_selectedGroup.Name}' index from {oldIndex} to {newIndex}");
-
-                _selectedGroup.Index = -1;
-
-                var allGroups = _groupList.ToList();
-
-                foreach (var group in allGroups)
-                {
-                    if (group == _selectedGroup)
-                        continue;
-
-                    if (newIndex > oldIndex)
-                    {
-                        if (group.Index > oldIndex && group.Index <= newIndex)
-                        {
-                            group.Index--;
-                            LoneLogging.WriteLine($"[Filters] Adjusted group '{group.Name}' index to {group.Index}");
-                        }
-                    }
-                    else
-                    {
-                        if (group.Index >= newIndex && group.Index < oldIndex)
-                        {
-                            group.Index++;
-                            LoneLogging.WriteLine($"[Filters] Adjusted group '{group.Name}' index to {group.Index}");
-                        }
-                    }
-                }
-
-                _selectedGroup.Index = newIndex;
-
-                ResortGroups(_selectedGroup);
-
-                LootFilterManager.Save();
-            }
+            var selectedItem = lstFilterGroups.SelectedItem;
+            lstFilterGroups.Items.Refresh();
+            lstFilterGroups.SelectedItem = selectedItem;
         }
 
         private void EditNotificationTime(int value)
@@ -664,20 +1077,17 @@ namespace eft_dma_radar.UI.Pages
             }
         }
 
-        private void RefreshGroupsComboBox(LootFilterGroup selectedGroup = null)
+        private void RefreshGroupsListView(LootFilterGroup selectedGroup = null)
         {
             if (selectedGroup == null)
-                selectedGroup = cboLootFilters.SelectedItem as LootFilterGroup;
+                selectedGroup = lstFilterGroups.SelectedItem as LootFilterGroup;
 
-            cboLootFilters.ItemsSource = null;
-            cboLootFilters.ItemsSource = _groupList;
+            OnPropertyChanged(nameof(GroupList));
 
             if (selectedGroup != null && _groupList.Contains(selectedGroup))
-                cboLootFilters.SelectedItem = selectedGroup;
+                lstFilterGroups.SelectedItem = selectedGroup;
             else if (_groupList.Count > 0)
-                cboLootFilters.SelectedIndex = 0;
-
-            nudGroupIndex.Maximum = Math.Max(0, _groupList.Count - 1);
+                lstFilterGroups.SelectedIndex = 0;
         }
 
         private void OpenContextMenu()
@@ -856,7 +1266,7 @@ namespace eft_dma_radar.UI.Pages
                 if (_groupList.Count == 0)
                     EnsureDefaultLootFilter();
 
-                RefreshGroupsComboBox();
+                RefreshGroupsListView();
                 RenumberGroupIndices();
                 LootFilterManager.Save();
 
@@ -870,6 +1280,204 @@ namespace eft_dma_radar.UI.Pages
             {
                 NotificationsShared.Error($"[Filters] Failed to import filters from clipboard: {ex.Message}");
                 LoneLogging.WriteLine($"[Filters] Import error: {ex}");
+            }
+        }
+
+        #region Bulk Operations
+        private void BulkChangeColor()
+        {
+            var selectedItems = GroupedItemsListView.SelectedItems.Cast<GroupedLootFilterEntry>().ToList();
+
+            if (selectedItems.Count == 0)
+            {
+                NotificationsShared.Warning("[Filters] Please select one or more items to change color");
+                return;
+            }
+
+            _openColorPicker?.Close();
+
+            var firstItemColor = (Color)ColorConverter.ConvertFromString(selectedItems[0].Color);
+            var picker = SingleOpenHelper.CreateControl<ColorPicker>();
+            picker.SelectedBrush = new SolidColorBrush(firstItemColor);
+            var window = new PopupWindow
+            {
+                PopupElement = picker,
+                AllowsTransparency = true,
+                WindowStyle = WindowStyle.None,
+                MinWidth = 0,
+                MinHeight = 0
+            };
+
+            _openColorPicker = window;
+
+            var parentWindow = MainWindow.GetWindow(this);
+
+            void UpdatePickerPosition()
+            {
+                try
+                {
+                    var btnPos = btnBulkColor.PointToScreen(new Point(0, 0));
+                    var leftPos = btnPos.X + btnBulkColor.ActualWidth - 5;
+                    var topPos = btnPos.Y - btnBulkColor.ActualHeight - 5;
+
+                    window.Left = leftPos;
+                    window.Top = topPos;
+                }
+                catch { }
+            }
+
+            EventHandler parentLocationChanged = (s, e) => UpdatePickerPosition();
+            SizeChangedEventHandler parentSizeChanged = (s, e) => UpdatePickerPosition();
+
+            if (parentWindow != null)
+            {
+                parentWindow.LocationChanged += parentLocationChanged;
+                parentWindow.SizeChanged += parentSizeChanged;
+            }
+
+            picker.Confirmed += (s, args) =>
+            {
+                if (picker.SelectedBrush is SolidColorBrush scb)
+                {
+                    foreach (var item in selectedItems)
+                    {
+                        item.Color = scb.Color.ToString();
+                    }
+                    SaveLootFilter();
+
+                    var message = selectedItems.Count == 1
+                        ? $"[Filters] Changed color for {selectedItems[0].Name}"
+                        : $"[Filters] Changed color for {selectedItems.Count} items";
+                    NotificationsShared.Info(message);
+                }
+                window.Close();
+            };
+
+            picker.Canceled += (s, args) =>
+            {
+                window.Close();
+            };
+
+            window.Loaded += (s, args) =>
+            {
+                UpdatePickerPosition();
+            };
+
+            window.Closed += (s, args) =>
+            {
+                _openColorPicker = null;
+
+                if (parentWindow != null)
+                {
+                    parentWindow.LocationChanged -= parentLocationChanged;
+                    parentWindow.SizeChanged -= parentSizeChanged;
+                }
+            };
+
+            window.Show(btnBulkColor, false);
+        }
+
+        private void BulkEnable()
+        {
+            var selectedItems = GroupedItemsListView.SelectedItems.Cast<GroupedLootFilterEntry>().ToList();
+
+            if (selectedItems.Count == 0)
+            {
+                NotificationsShared.Warning("[Filters] Please select one or more items to enable");
+                return;
+            }
+
+            foreach (var item in selectedItems)
+            {
+                item.Enabled = true;
+            }
+
+            SaveLootFilter();
+
+            var message = selectedItems.Count == 1
+                ? $"[Filters] Enabled {selectedItems[0].Name}"
+                : $"[Filters] Enabled {selectedItems.Count} items";
+            NotificationsShared.Info(message);
+        }
+
+        private void BulkDisable()
+        {
+            var selectedItems = GroupedItemsListView.SelectedItems.Cast<GroupedLootFilterEntry>().ToList();
+
+            if (selectedItems.Count == 0)
+            {
+                NotificationsShared.Warning("[Filters] Please select one or more items to disable");
+                return;
+            }
+
+            foreach (var item in selectedItems)
+            {
+                item.Enabled = false;
+            }
+
+            SaveLootFilter();
+
+            var message = selectedItems.Count == 1
+                ? $"[Filters] Disabled {selectedItems[0].Name}"
+                : $"[Filters] Disabled {selectedItems.Count} items";
+            NotificationsShared.Info(message);
+        }
+
+        private void BulkToggleNotify()
+        {
+            var selectedItems = GroupedItemsListView.SelectedItems.Cast<GroupedLootFilterEntry>().ToList();
+
+            if (selectedItems.Count == 0)
+            {
+                NotificationsShared.Warning("[Filters] Please select one or more items to toggle notifications");
+                return;
+            }
+
+            var anyDisabled = selectedItems.Any(x => !x.Notify);
+            var newNotifyState = anyDisabled;
+
+            foreach (var item in selectedItems)
+            {
+                item.Notify = newNotifyState;
+            }
+
+            SaveLootFilter();
+
+            var action = newNotifyState ? "enabled" : "disabled";
+            var message = selectedItems.Count == 1
+                ? $"[Filters] {action} notifications for {selectedItems[0].Name}"
+                : $"[Filters] {action} notifications for {selectedItems.Count} items";
+            NotificationsShared.Info(message);
+        }
+        #endregion
+
+        private void EditItemNote(GroupedLootFilterEntry entry)
+        {
+            var result = TextInputWindow.ShowMultiLine(
+                owner: Window.GetWindow(this),
+                title: $"Note for {entry.Name}",
+                prompt: "Add a personal note for this item:",
+                defaultText: entry.Note ?? "",
+                placeholder: "Enter your note here...",
+                width: 450,
+                height: 70
+            );
+
+            if (result != null && result != entry.Note)
+            {
+                var oldNote = entry.Note;
+                entry.Note = result;
+                SaveLootFilter();
+
+                if (string.IsNullOrWhiteSpace(result) && !string.IsNullOrWhiteSpace(oldNote))
+                {
+                    NotificationsShared.Info($"[Filters] Cleared note for {entry.Name}");
+                }
+                else if (!string.IsNullOrWhiteSpace(result))
+                {
+                    var action = string.IsNullOrWhiteSpace(oldNote) ? "Added" : "Updated";
+                    NotificationsShared.Info($"[Filters] {action} note for {entry.Name}");
+                }
             }
         }
 
@@ -928,7 +1536,7 @@ namespace eft_dma_radar.UI.Pages
             LootFilterManager.Save();
 
             var lootFilterSettings = MainWindow.Window.LootFilterControl;
-            lootFilterSettings.RefreshGroupsComboBox(dynamicGroup);
+            lootFilterSettings.RefreshGroupsListView(dynamicGroup);
 
             LoneLogging.WriteLine($"[Filters] Created dynamic group: {groupName} with {dynamicGroup.Items.Count} items.");
             return dynamicGroup;
@@ -964,14 +1572,12 @@ namespace eft_dma_radar.UI.Pages
                 }
                 else if (selectedWillBeRemoved)
                 {
-                    lootFilterSettings.cboLootFilters.SelectedIndex = 0;
+                    lootFilterSettings.lstFilterGroups.SelectedIndex = 0;
                 }
 
                 lootFilterSettings.RenumberGroupIndices();
-
                 LootFilterManager.Save();
-
-                lootFilterSettings.RefreshGroupsComboBox();
+                lootFilterSettings.RefreshGroupsListView();
             }
         }
 
@@ -984,12 +1590,17 @@ namespace eft_dma_radar.UI.Pages
             {
                 Predicate<LootItem> p = (x) =>
                 {
+                    if (x.IsGroupedBlacklisted)
+                        return false;
+
                     return (x.IsRegularLoot || x.IsValuableLoot || x.IsImportant || x.IsWishlisted) ||
                             (ShowQuestItems && x.IsQuestCondition) ||
                             (ShowBackpacks && x.IsBackpack) ||
                             (ShowMeds && x.IsMeds) ||
-                            (ShowFood && x.IsFood);
+                            (ShowFood && x.IsFood) ||
+                            (ShowWeapons && x.IsWeapon);
                 };
+
                 return (item) =>
                 {
                     if (item is LootAirdrop || item is LootCorpse)
@@ -1012,6 +1623,9 @@ namespace eft_dma_radar.UI.Pages
 
                 Predicate<LootItem> p = (x) =>
                 {
+                    if (x.IsGroupedBlacklisted)
+                        return false;
+
                     return names.Any(a => x.Name.Contains(a, StringComparison.OrdinalIgnoreCase));
                 };
 
@@ -1038,26 +1652,11 @@ namespace eft_dma_radar.UI.Pages
             {
                 switch (tag)
                 {
-                    case "RemoveGroup":
-                        RemoveGroup();
-                        break;
-                    case "AddGroup":
-                        AddGroup();
-                        break;
-                    case "ToggleFilter":
-                        ToggleFilter();
-                        break;
                     case "StaticFilter":
                         ToggleStatic();
                         break;
                     case "FilterNotifications":
                         ToggleNotifications();
-                        break;
-                    case "AddItem":
-                        AddItemToGroup();
-                        break;
-                    case "RemoveItem":
-                        RemoveItemFromGroup();
                         break;
                 }
             }
@@ -1083,6 +1682,18 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "RemoveItem":
                         RemoveItemFromGroup();
+                        break;
+                    case "BulkColor":
+                        BulkChangeColor();
+                        break;
+                    case "BulkEnable":
+                        BulkEnable();
+                        break;
+                    case "BulkDisable":
+                        BulkDisable();
+                        break;
+                    case "BulkNotify":
+                        BulkToggleNotify();
                         break;
                 }
             }
@@ -1112,9 +1723,6 @@ namespace eft_dma_radar.UI.Pages
 
                 switch (tag)
                 {
-                    case "GroupIndex":
-                        EditFilterIndex(value);
-                        break;
                     case "NotificationTime":
                         EditNotificationTime(value);
                         break;
@@ -1122,17 +1730,43 @@ namespace eft_dma_radar.UI.Pages
             }
         }
 
-        private void cboLootFilters_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void lstFilterGroups_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingControls || cboLootFilters.SelectedItem == null)
+            if (_isUpdatingControls || lstFilterGroups.SelectedItem == null)
                 return;
 
-            var selectedGroup = cboLootFilters.SelectedItem as LootFilterGroup;
+            var selectedGroup = lstFilterGroups.SelectedItem as LootFilterGroup;
 
             if (selectedGroup != null)
             {
                 LoneLogging.WriteLine($"[Filters] Selected group changed to: {selectedGroup.Name}, Index: {selectedGroup.Index}");
                 SetSelectedGroup(selectedGroup);
+            }
+        }
+
+        private void GroupedItemsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var hasSelection = GroupedItemsListView.SelectedItems.Count > 0;
+            var selectionCount = GroupedItemsListView.SelectedItems.Count;
+
+            btnBulkColor.IsEnabled = hasSelection;
+            btnBulkEnable.IsEnabled = hasSelection;
+            btnBulkDisable.IsEnabled = hasSelection;
+            btnBulkNotify.IsEnabled = hasSelection;
+
+            if (selectionCount > 0)
+            {
+                btnBulkColor.ToolTip = $"Change color of {selectionCount} selected item{(selectionCount > 1 ? "s" : "")}";
+                btnBulkEnable.ToolTip = $"Enable {selectionCount} selected item{(selectionCount > 1 ? "s" : "")}";
+                btnBulkDisable.ToolTip = $"Disable {selectionCount} selected item{(selectionCount > 1 ? "s" : "")}";
+                btnBulkNotify.ToolTip = $"Toggle notifications for {selectionCount} selected item{(selectionCount > 1 ? "s" : "")}";
+            }
+            else
+            {
+                btnBulkColor.ToolTip = "Change color of selected items";
+                btnBulkEnable.ToolTip = "Enable selected items";
+                btnBulkDisable.ToolTip = "Disable selected items";
+                btnBulkNotify.ToolTip = "Toggle notifications for selected items";
             }
         }
 
@@ -1276,6 +1910,39 @@ namespace eft_dma_radar.UI.Pages
                         break;
                 }
             }
+        }
+
+        private void GroupStatusIndicator_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.Tag is LootFilterGroup group)
+            {
+                group.Enabled = !group.Enabled;
+
+                SaveLootFilter();
+
+                var status = group.Enabled ? "enabled" : "disabled";
+                NotificationsShared.Info($"[Filters] {status} group: {group.Name}");
+
+                e.Handled = true;
+            }
+        }
+
+        private void BlacklistButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is GroupedLootFilterEntry entry)
+            {
+                entry.Blacklist = !entry.Blacklist;
+                SaveLootFilter();
+
+                var status = entry.Blacklist ? "blacklisted" : "removed from blacklist";
+                NotificationsShared.Info($"[Filters] {entry.Name} {status}");
+            }
+        }
+
+        private void NoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is GroupedLootFilterEntry entry)
+                EditItemNote(entry);
         }
         #endregion
         #endregion

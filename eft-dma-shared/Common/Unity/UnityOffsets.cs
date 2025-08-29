@@ -47,8 +47,10 @@
             // CopiableState struct begins at 0x40
             public const uint ViewMatrix = 0x100;
             public const uint FOV = 0x180;
+            public const uint LastPosition = 0x454;
             public const uint AspectRatio = 0x4F0;
             public const uint OcclusionCulling = 0x524; // bool, Camera::CopiableState -> m_OcclusionCulling
+            public const uint NearClip = 0x464; // float (m_NearClip)
         }
 
         public readonly struct GfxDeviceClient
@@ -69,6 +71,30 @@
         {
             public const uint Length = 0x10; // int32
             public const uint Value = 0x14; // string,unicode
-        }        
+        }
+        public readonly struct UnityList
+        {
+            public const uint Base = 0x10; // to UnityListBase
+            public const uint Count = 0x18; // int32
+        }
+
+        public readonly struct UnityListBase
+        {
+            public const uint Start = 0x20; // start of list +(i * 0x8)
+        }
+        public readonly struct BaseRenderer
+        {
+            public const uint RendererData = 0x8; // SharedRendererData (m_RendererData)
+        }
+
+        public readonly struct SharedRendererData
+        {
+            public const uint TransformInfo = 0x0; // TransformInfo (m_TransformInfo)
+        }
+
+        public readonly struct TransformInfo
+        {
+            public const uint LocalAABB = 0x98; // AABB (localAABB)
+        }             
     }
 }

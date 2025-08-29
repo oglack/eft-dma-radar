@@ -19,7 +19,44 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         public string Nickname => this.Profile?.Info?.Nickname;
 
         public int Prestige => this.Profile?.Info?.Prestige ?? -1;
+        /// <summary> Is the player flagged as streamer (from eft-api.tech top-level). </summary>
+        public bool IsStreamer => Meta?.IsStreamer ?? false;
 
+        /// <summary> Human-readable last updated from eft-api.tech if available, else relative “time ago”. </summary>
+        public string LastUpdatedReadable
+        {
+            get
+            {
+                // Try API "readable" first
+                var readable = Meta?.LastUpdated?.Readable;
+                if (!string.IsNullOrWhiteSpace(readable))
+                {
+                    if (DateTime.TryParse(readable, out var parsed))
+                    {
+                        var diff = DateTime.Now - parsed;
+                        return $"{diff.Days}d ago";
+                    }
+                }
+
+                // Fallback: use Updated property you already calculate
+                if (Updated != null)
+                {
+                    return Updated;
+                }
+
+                return "N/A";
+            }
+        }
+
+        private EFTProfileService.ProfileResponseContainer Meta
+        {
+            get
+            {
+                var acctID = _player.AccountID;
+                if (string.IsNullOrEmpty(acctID)) return null;
+                return EFTProfileService.TryGetEftApiMeta(acctID, out var m) ? m : null;
+            }
+        }
         /// <summary>
         /// Player's current profile (if Profile Lookups are enabled).
         /// Returns NULL if profile cannot be retrieved.

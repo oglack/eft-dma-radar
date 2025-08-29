@@ -7,6 +7,7 @@ using eft_dma_radar.Tarkov.GameWorld;
 using eft_dma_radar.Tarkov.Loot;
 using eft_dma_radar.UI.ESP;
 using eft_dma_radar.UI.Misc;
+using eft_dma_radar.UI.Pages;
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.ESP;
@@ -155,7 +156,33 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         #region Fields / Properties
         const float HEIGHT_INDICATOR_THRESHOLD = 1.85f;
         const float HEIGHT_INDICATOR_ARROW_SIZE = 2f;
+        /// <summary>
+        /// Linecast visibility info.
+        /// </summary>
+        public bool[] VisibilityInfo { get; set; }
+        public int ListIndex { get; set; }
+        public bool IsVisible { get; set; } = false;
+        public Dictionary<Bones, bool> BoneVisibility { get; } = new();
+        public static readonly List<(Bones start, Bones end)> BoneSegments = new List<(Bones, Bones)>
+        {
+            (Bones.HumanHead, Bones.HumanNeck),
+            (Bones.HumanNeck, Bones.HumanSpine3),
+            (Bones.HumanSpine3, Bones.HumanSpine2),
+            (Bones.HumanSpine2, Bones.HumanSpine1),
+            (Bones.HumanSpine1, Bones.HumanPelvis),
 
+            (Bones.HumanPelvis, Bones.HumanLThigh2),   // left knee
+            (Bones.HumanLThigh2, Bones.HumanLFoot),    // left foot
+
+            (Bones.HumanPelvis, Bones.HumanRThigh2),   // right knee
+            (Bones.HumanRThigh2, Bones.HumanRFoot),    // right foot
+
+            (Bones.HumanLCollarbone, Bones.HumanLForearm2),  // left elbow
+            (Bones.HumanLForearm2, Bones.HumanLPalm),         // left hand
+
+            (Bones.HumanRCollarbone, Bones.HumanRForearm2),  // right elbow
+            (Bones.HumanRForearm2, Bones.HumanRPalm),         // right hand
+        };        
         /// <summary>
         /// Player Class Base Address
         /// </summary>
@@ -1272,8 +1299,12 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
                 if (!IsAlive)
                 {
-                    var corpseColor = GetCorpseFilterColor();
-                    DrawDeathMarker(canvas, point, corpseColor);
+                    if (Config.ShowCorpseMarkers)
+                    {
+                        var corpseColor = GetCorpseFilterColor();
+                        DrawDeathMarker(canvas, point, corpseColor);
+                    }
+
                     return;
                 }
                 
@@ -1285,6 +1316,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 var height = Position.Y - localPlayer.Position.Y;
                 string nameText = null;
                 string distanceText = null;
+                List<LootItem> importantLootItems = null;
                 string heightText = null;
                 var rightSideInfo = new List<string>();
                 var hasImportantItems = Type != PlayerType.Teammate &&
@@ -1299,6 +1331,24 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
                 if (typeSettings.ShowDistance)
                     distanceText = $"{(int)Math.Round(dist)}";
+
+                if (typeSettings.ShowImportantLoot && IsAlive && Gear?.Loot != null && Type != PlayerType.Teammate)
+                {
+                    importantLootItems = Gear.Loot
+                        .Where(item => item.IsImportant ||
+                                       item is QuestItem ||
+                                       (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                                       item.IsWishlisted ||
+                                       (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                                       (LootFilterControl.ShowMeds && item.IsMeds) ||
+                                       (LootFilterControl.ShowFood && item.IsFood) ||
+                                       (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                                       item.IsValuableLoot ||
+                                       (!item.IsGroupedBlacklisted && item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                        .OrderLoot()
+                        .Take(5)
+                        .ToList();
+                }
 
                 if (typeSettings.ShowHeight && !typeSettings.HeightIndicator)
                     heightText = $"{(int)Math.Round(height)}";
@@ -1333,7 +1383,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 if (typeSettings.ShowTag && !string.IsNullOrEmpty(Alerts))
                     rightSideInfo.Add(Alerts);
 
-                DrawPlayerText(canvas, point, nameText, distanceText, heightText, rightSideInfo, hasImportantItems);
+                DrawPlayerText(canvas, point, nameText, distanceText, heightText, rightSideInfo, hasImportantItems, importantLootItems);
 
                 if (typeSettings.ShowHeight && typeSettings.HeightIndicator)
                     DrawAlternateHeightIndicator(canvas, point, height, GetPaints());
@@ -1371,16 +1421,16 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         }
 
         private void DrawPlayerText(SKCanvas canvas, SKPoint point,
-                                      string nameText, string distanceText,
-                                      string heightText, List<string> rightSideInfo,
-                                      bool hasImportantItems)
+                                  string nameText, string distanceText,
+                                  string heightText, List<string> rightSideInfo,
+                                  bool hasImportantItems, List<LootItem> importantLootItems = null)
         {
             var paints = GetPaints();
 
             if (MainWindow.MouseoverGroup is int grp && grp == GroupID)
                 paints.Item2 = SKPaints.TextMouseoverGroup;
 
-            var spacing = 3 * MainWindow.UIScale;
+            var spacing = 1 * MainWindow.UIScale;
             var textSize = 12 * MainWindow.UIScale;
             var baseYPosition = point.Y - 12 * MainWindow.UIScale;
 
@@ -1421,13 +1471,32 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 canvas.DrawText("*", asteriskPoint, SKPaints.TextPulsingAsterisk);
             }
 
+            var currentBottomY = point.Y + 20 * MainWindow.UIScale;
             if (!string.IsNullOrEmpty(distanceText))
             {
                 var distWidth = paints.Item2.MeasureText(distanceText);
-                var distPoint = new SKPoint(point.X - (distWidth / 2), point.Y + 20 * MainWindow.UIScale);
+                var distPoint = new SKPoint(point.X - (distWidth / 2), currentBottomY);
 
                 canvas.DrawText(distanceText, distPoint, SKPaints.TextOutline);
                 canvas.DrawText(distanceText, distPoint, paints.Item2);
+            }
+
+            if (importantLootItems?.Any() == true)
+            {
+                currentBottomY += textSize + spacing;
+
+                foreach (var item in importantLootItems)
+                {
+                    var itemText = item.ShortName;
+                    var itemPaint = GetPlayerLootItemTextPaint(item);
+                    var itemWidth = itemPaint.MeasureText(itemText);
+                    var itemPoint = new SKPoint(point.X - (itemWidth / 2), currentBottomY);
+
+                    canvas.DrawText(itemText, itemPoint, SKPaints.TextOutline);
+                    canvas.DrawText(itemText, itemPoint, itemPaint);
+
+                    currentBottomY += textSize + spacing;
+                }
             }
 
             if (!string.IsNullOrEmpty(heightText))
@@ -1520,27 +1589,54 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
         private SKColor GetCorpseFilterColor()
         {
-            if (LootObject?.Loot != null)
+            if (LootObject?.Loot != null && LootObject.Loot.Any())
             {
-                foreach (var item in LootObject.Loot.OrderByDescending(x => x.IsImportant))
+                var topItem = LootObject.Loot.OrderLoot().FirstOrDefault();
+
+                if (topItem != null)
                 {
-                    var matchedFilter = item.MatchedFilter;
+                    var matchedFilter = topItem.MatchedFilter;
                     if (matchedFilter != null && !string.IsNullOrEmpty(matchedFilter.Color))
                     {
                         if (SKColor.TryParse(matchedFilter.Color, out var filterColor))
                             return filterColor;
                     }
 
-                    if (item.IsWishlisted)
-                        return SKPaints.PaintWishlistItem.Color;
-                    if (item is QuestItem || (Config.QuestHelper.Enabled && item.IsQuestCondition))
+                    if (topItem is QuestItem || (Config.QuestHelper.Enabled && topItem.IsQuestCondition))
                         return SKPaints.PaintQuestItem.Color;
-                    if (item.IsValuableLoot)
+
+                    if (topItem.IsWishlisted)
+                        return SKPaints.PaintWishlistItem.Color;
+
+                    if (topItem.IsValuableLoot)
                         return SKPaints.PaintImportantLoot.Color;
                 }
             }
 
             return SKPaints.PaintDeathMarker.Color;
+        }
+
+        /// <summary>
+        /// Helper method to get the appropriate text paint for a player's loot item based on its importance/filter
+        /// </summary>
+        private static SKPaint GetPlayerLootItemTextPaint(LootItem item)
+        {
+            var isImportant = item.IsImportant ||
+                               item is QuestItem ||
+                               (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                               (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                               (LootFilterControl.ShowMeds && item.IsMeds) ||
+                               (LootFilterControl.ShowFood && item.IsFood) ||
+                               (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                               item.IsValuableLoot;
+
+            if (isImportant)
+            {
+                var paints = item.GetPaints();
+                return paints.Item2;
+            }
+
+            return SKPaints.TextMouseover;
         }
 
         public ValueTuple<SKPaint, SKPaint> GetPaints()
@@ -1587,11 +1683,11 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             var playerTypeKey = DeterminePlayerTypeKey();
             var typeSettings = Config.PlayerTypeSettings.GetSettings(playerTypeKey);
 
-            var lines = new List<string>();
+            var lines = new List<(string text, SKPaint paint)>();
             var name = Config.MaskNames && IsHuman ? "<Hidden>" : Name;
             string health = null;
             string kd = null;
-            
+
             if (this is ObservedPlayer observed)
             {
                 health = observed.HealthStatus is Enums.ETagStatus.Healthy
@@ -1603,71 +1699,81 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             }
 
             if (IsStreaming) // Streamer Notice
-                lines.Add($"[LIVE - Double Click]");
+                lines.Add(($"[LIVE - Double Click]", SKPaints.TextMouseover));
 
             var alert = this.Alerts?.Trim();
 
-            if (!string.IsNullOrEmpty(alert)) // Special Players,etc.
-                lines.Add(alert);
+            if (!string.IsNullOrEmpty(alert))
+                lines.Add((alert, SKPaints.TextMouseover));
 
-            if (IsHostileActive) // Enemy Players, display information
+            if (IsHostileActive)
             {
-                lines.Add($"{name}{health}");
-                lines.Add($"KD: {kd}");
+                lines.Add(($"{name}{health}", SKPaints.TextMouseover));
+                lines.Add(($"KD: {kd}", SKPaints.TextMouseover));
                 var gear = Gear;
                 var hands = $"{Hands?.CurrentItem} {Hands?.CurrentAmmo}".Trim();
-                lines.Add($"Use: {(hands is null ? "--" : hands)}");
+                lines.Add(($"Use: {(hands is null ? "--" : hands)}", SKPaints.TextMouseover));
                 var faction = PlayerSide.ToString();
                 string g = null;
-                
+
                 if (GroupID != -1)
                     g = $" G:{GroupID} ";
-                
-                lines.Add($"{faction}{g}");
-                
+
+                lines.Add(($"{faction}{g}", SKPaints.TextMouseover));
+
                 var loot = gear?.Loot;
-                
+
                 if (loot is not null)
                 {
                     var playerValue = TarkovMarketItem.FormatPrice(gear?.Value ?? -1);
-                    lines.Add($"Value: {playerValue}");
+                    lines.Add(($"Value: {playerValue}", SKPaints.TextMouseover));
                     var iterations = 0;
-                    
+
                     foreach (var item in loot)
                     {
                         if (iterations++ >= 5)
-                            break; // Only show first 5 Items (HV is on top)
-                        lines.Add(item.GetUILabel());
+                            break;
+
+                        var itemPaint = GetPlayerLootItemTextPaint(item);
+                        lines.Add((item.GetUILabel(), itemPaint));
                     }
                 }
             }
             else if (!IsAlive)
             {
-                lines.Add($"{Type.GetDescription()}:{name}");
+                lines.Add(($"{Type.GetDescription()}:{name}", SKPaints.TextMouseover));
                 string g = null;
-                
+
                 if (GroupID != -1)
                     g = $"G:{GroupID} ";
-                
-                if (g is not null) lines.Add(g);
-                
+
+                if (g is not null) lines.Add((g, SKPaints.TextMouseover));
+
                 var corpseLoot = LootObject?.Loot?.OrderLoot();
-                
+
                 if (corpseLoot is not null)
                 {
                     var sumPrice = corpseLoot.Sum(x => x.Price);
                     var corpseValue = TarkovMarketItem.FormatPrice(sumPrice);
-                    lines.Add($"Value: {corpseValue}"); // Player name, value
-                    
+                    lines.Add(($"Value: {corpseValue}", SKPaints.TextMouseover));
+
                     if (corpseLoot.Any())
+                    {
                         foreach (var item in corpseLoot)
-                            lines.Add(item.GetUILabel());
-                    else lines.Add("Empty");
+                        {
+                            var itemPaint = GetPlayerLootItemTextPaint(item);
+                            lines.Add((item.GetUILabel(), itemPaint));
+                        }
+                    }
+                    else
+                    {
+                        lines.Add(("Empty", SKPaints.TextMouseover));
+                    }
                 }
             }
             else if (IsAIActive)
             {
-                lines.Add(name);
+                lines.Add((name, SKPaints.TextMouseover));
             }
 
             Position.ToMapPos(mapParams.Map).ToZoomedPos(mapParams).DrawMouseoverText(canvas, lines);
@@ -1702,6 +1808,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 Type != PlayerType.Teammate &&
                 ((Gear?.Loot?.Any(x => x.IsImportant) ?? false) ||
                  (Config.QuestHelper.Enabled && (Gear?.HasQuestItems ?? false)));
+            var showImportantLoot = espTypeSettings.ShowImportantLoot && Type != PlayerType.Teammate &&
+                (Gear?.Loot?.Any(x => x.IsImportant) ?? false);
 
             if (IsHostile && highAlert)
             {
@@ -1745,7 +1853,49 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 if (!this.Skeleton.UpdateESPBuffer())
                     return;
 
-                canvas.DrawPoints(SKPointMode.Lines, Skeleton.ESPBuffer, espPaints.Item1);
+                // Each line consists of 2 points in ESPBuffer
+                // So total segments = ESPBuffer.Length / 2
+                int segmentCount = Skeleton.ESPBuffer.Length / 2;
+
+                for (int i = 0; i < segmentCount; i++)
+                {
+                    int startIndex = i * 2;
+                    SKPoint start = Skeleton.ESPBuffer[startIndex];
+                    SKPoint end = Skeleton.ESPBuffer[startIndex + 1];
+
+                    // Now we must find which bones correspond to these points to get visibility
+                    // You have this mapping hardcoded in UpdateESPBuffer() - let's replicate it here:
+
+                    // Map each segment index to pair of bones:
+                    var bonePairs = new (Bones start, Bones end)[]
+                    {
+                        (Bones.HumanHead, Bones.HumanNeck),          // 0
+                        (Bones.HumanNeck, Bones.HumanSpine3),        // 1
+                        (Bones.HumanSpine3, Bones.HumanSpine2),      // 2
+                        (Bones.HumanSpine2, Bones.HumanSpine1),      // 3
+                        (Bones.HumanSpine1, Bones.HumanPelvis),      // 4
+                        (Bones.HumanPelvis, Bones.HumanLThigh2),     // 5 (Left Knee)
+                        (Bones.HumanLThigh2, Bones.HumanLFoot),      // 6 (Left Foot)
+                        (Bones.HumanPelvis, Bones.HumanRThigh2),     // 7 (Right Knee)
+                        (Bones.HumanRThigh2, Bones.HumanRFoot),      // 8 (Right Foot)
+                        (Bones.HumanLCollarbone, Bones.HumanLForearm2), // 9 (Left Elbow)
+                        (Bones.HumanLForearm2, Bones.HumanLPalm),    // 10 (Left Hand)
+                        (Bones.HumanRCollarbone, Bones.HumanRForearm2), // 11 (Right Elbow)
+                        (Bones.HumanRForearm2, Bones.HumanRPalm),    // 12 (Right Hand)
+                    };
+
+                    if (i >= bonePairs.Length)
+                        continue; // Defensive
+
+                    var pair = bonePairs[i];
+
+                    bool startVisible = this.BoneVisibility.TryGetValue(pair.start, out bool sVis) && sVis;
+                    bool endVisible = this.BoneVisibility.TryGetValue(pair.end, out bool eVis) && eVis;
+
+                    var paint = (startVisible && endVisible) ? SKPaints.PaintVisible : espPaints.Item1;
+
+                    canvas.DrawLine(start, end, paint);
+                }
             }
             else if (renderMode is ESPPlayerRenderMode.Box)
             {
@@ -1826,15 +1976,17 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             if (showHealth && observedPlayer != null)
                 DrawHealthBar(canvas, observedPlayer, playerBox.Value);
 
-            if (showDist || showWep || showAmmo || showNVG || showThermal || showUBGL || showKD)
+            var textStartY = playerBox.Value.Bottom + espPaints.Item2.TextSize * ESP.Config.FontScale;
+            var currentTextY = textStartY;
+
+            if ((showDist || showWep || showAmmo || showNVG || showThermal || showUBGL || showKD) || showImportantLoot)
             {
-                var lines = new List<string>();
+                var weaponInfoLines = new List<string>();
 
                 if (showDist)
-                    lines.Add($"{(int)dist}m");
+                    weaponInfoLines.Add($"{(int)dist}m");
 
                 string weaponAmmoText = null;
-
                 if (showWep && showAmmo)
                     weaponAmmoText = $"{Hands.CurrentItem}/{Hands.CurrentAmmo}";
                 else if (showWep)
@@ -1843,25 +1995,49 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                     weaponAmmoText = Hands.CurrentAmmo;
 
                 if (weaponAmmoText != null)
-                    lines.Add(weaponAmmoText);
+                    weaponInfoLines.Add(weaponAmmoText);
 
                 if (showKD && observedPlayer != null && observedPlayer.Profile?.Overall_KD is float kd)
                     if (kd >= espTypeSettings.MinKD)
-                        lines.Add(kd.ToString("n2"));
-                
+                        weaponInfoLines.Add(kd.ToString("n2"));
+
                 if (showNVG)
-                    lines.Add("NVG");
+                    weaponInfoLines.Add("NVG");
 
                 if (showThermal)
-                    lines.Add("THERMAL");
+                    weaponInfoLines.Add("THERMAL");
 
                 if (showUBGL)
-                    lines.Add("UBGL");
+                    weaponInfoLines.Add("UBGL");
 
-                if (lines.Any())
+                var importantItems = showImportantLoot && IsAlive && Gear?.Loot != null ? Gear.Loot
+                    .Where(item => item.IsImportant ||
+                                  item is QuestItem ||
+                                  (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                                  item.IsWishlisted ||
+                                  (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                                  (LootFilterControl.ShowMeds && item.IsMeds) ||
+                                  (LootFilterControl.ShowFood && item.IsFood) ||
+                                  (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                                  item.IsValuableLoot ||
+                                  (!item.IsGroupedBlacklisted && item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                    .OrderLoot()
+                    .ToList() : null;
+
+                if (weaponInfoLines.Any() || (importantItems?.Any() == true))
                 {
                     var textPt = new SKPoint(playerBox.Value.MidX, playerBox.Value.Bottom + espPaints.Item2.TextSize * ESP.Config.FontScale);
-                    textPt.DrawESPText(canvas, this, localPlayer, false, espPaints.Item2, lines.ToArray());
+                    var combinedMainLabel = weaponInfoLines.Any() ? string.Join("\n", weaponInfoLines) : null;
+
+                    textPt.DrawESPText(
+                        canvas,
+                        this,
+                        localPlayer,
+                        false,
+                        espPaints.Item2,
+                        combinedMainLabel,
+                        importantItems
+                    );
                 }
             }
 
@@ -1879,6 +2055,30 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                     canvas.DrawLine(fpScreen, playerScreen, SKPaints.PaintAimbotLockedLineESP);
                 }
             }
+        }
+        public void UpdateBoneVisibility(Bones[] bones, bool[] results)
+        {
+            if (bones.Length != results.Length)
+                return;
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                BoneVisibility[bones[i]] = results[i];
+                //LoneLogging.WriteLine($"Bone {bones[i]} visibility: {results[i]}"); // Your log line
+            }
+        }
+
+        private SKPoint GetScreenPointForBone(Bones bone)
+        {
+            // If you store the bone screen points in a dictionary or buffer, use that
+            // For example, you might do something like:
+            if (!this.Skeleton.Bones.TryGetValue(bone, out var transform))
+                return default;
+        
+            if (!CameraManagerBase.WorldToScreen(ref transform.Position, out var screenPos))
+                return default;
+        
+            return new SKPoint(screenPos.X, screenPos.Y);
         }
 
         /// <summary>
@@ -1952,6 +2152,9 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
             if (IsFocused)
                 return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintFocusedESP, SKPaints.TextFocusedESP);
+
+            //if (IsVisible)
+            //    return new ValueTuple<SKPaint, SKPaint>(SKPaints.PaintVisible, SKPaints.TextVisible);
 
             switch (Type)
             {

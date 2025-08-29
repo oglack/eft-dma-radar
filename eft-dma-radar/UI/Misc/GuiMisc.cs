@@ -1,10 +1,12 @@
 ﻿using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.Loot;
 using eft_dma_radar.UI.ESP;
+using eft_dma_radar.UI.Pages;
 using eft_dma_shared.Common.Maps;
 using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Unity;
+using System.Collections.Generic;
 
 namespace eft_dma_radar.UI.Misc
 {
@@ -505,6 +507,41 @@ namespace eft_dma_radar.UI.Misc
         }
 
         /// <summary>
+        /// Draw mouseover text with colored entries for important items
+        /// </summary>
+        public static void DrawMouseoverText(this SKPoint zoomedMapPos, SKCanvas canvas, IEnumerable<(string text, SKPaint paint)> coloredLines)
+        {
+            var lineList = coloredLines.ToList();
+            if (!lineList.Any()) return;
+
+            float maxLength = 0;
+            foreach (var line in lineList)
+            {
+                var length = line.paint.MeasureText(line.text);
+                if (length > maxLength)
+                    maxLength = length;
+            }
+
+            var backer = new SKRect()
+            {
+                Bottom = zoomedMapPos.Y + ((lineList.Count * 12f) - 2) * MainWindow.UIScale,
+                Left = zoomedMapPos.X + (9 * MainWindow.UIScale),
+                Top = zoomedMapPos.Y - (9 * MainWindow.UIScale),
+                Right = zoomedMapPos.X + (9 * MainWindow.UIScale) + maxLength + (6 * MainWindow.UIScale)
+            };
+            canvas.DrawRect(backer, SKPaints.PaintTransparentBacker);
+            zoomedMapPos.Offset(11 * MainWindow.UIScale, 3 * MainWindow.UIScale);
+
+            foreach (var line in lineList)
+            {
+                if (string.IsNullOrEmpty(line.text?.Trim()))
+                    continue;
+                canvas.DrawText(line.text, zoomedMapPos, line.paint);
+                zoomedMapPos.Offset(0, 12f * MainWindow.UIScale);
+            }
+        }
+
+        /// <summary>
         /// Draw ESP text with optional distance display for entities or static objects like mines
         /// </summary>
         public static void DrawESPText(this SKPoint screenPos, SKCanvas canvas, IESPEntity entity, LocalPlayer localPlayer, bool printDist, SKPaint paint, params string[] lines)
@@ -518,13 +555,9 @@ namespace eft_dma_radar.UI.Misc
                     var dist = Vector3.Distance(entity.Position, localPlayer.Position);
 
                     if (entity is LootItem && dist < 10f)
-                    {
                         distStr = $" {dist.ToString("n1")}m";
-                    }
                     else
-                    {
                         distStr = $" {(int)dist}m";
-                    }
 
                     lines[0] += distStr;
                 }
@@ -534,6 +567,7 @@ namespace eft_dma_radar.UI.Misc
             {
                 if (string.IsNullOrEmpty(x?.Trim()))
                     continue;
+
                 canvas.DrawText(x, screenPos, paint);
                 screenPos.Y += paint.TextSize;
             }
@@ -547,24 +581,180 @@ namespace eft_dma_radar.UI.Misc
             if (string.IsNullOrEmpty(label))
                 return;
 
-            string textWithDist = label;
+            var textWithDist = label;
 
             if (printDist)
             {
-                string distStr;
-                if (distance < 10f)
-                {
-                    distStr = $" {distance.ToString("n1")}m";
-                }
-                else
-                {
-                    distStr = $" {(int)distance}m";
-                }
+                var distStr = distance < 10f ? $" {distance:n1}m" : $" {(int)distance}m";
 
                 textWithDist += distStr;
             }
 
             canvas.DrawText(textWithDist, screenPos, paint);
+        }
+
+        /// <summary>
+        /// Draw ESP text with colored entries for important items in a corpse
+        /// </summary>
+        public static void DrawESPText(this SKPoint screenPos, SKCanvas canvas, IESPEntity entity, LocalPlayer localPlayer, bool printDist, SKPaint paint, string mainLabel, IEnumerable<LootItem> importantItems = null)
+        {
+            var scale = ESP.ESP.Config.FontScale;
+            var currentPos = screenPos;
+
+            if (!string.IsNullOrEmpty(mainLabel))
+            {
+                var textWithDist = mainLabel;
+
+                if (printDist && entity != null)
+                {
+                    var dist = Vector3.Distance(entity.Position, localPlayer.Position);
+                    var distStr = dist < 10f ? $" {dist:n1}m" : $" {(int)dist}m";
+                    textWithDist += distStr;
+                }
+
+                var scaledMainPaint = new SKPaint
+                {
+                    SubpixelText = paint.SubpixelText,
+                    Color = paint.Color,
+                    IsStroke = paint.IsStroke,
+                    TextSize = 12f * scale,
+                    TextAlign = paint.TextAlign,
+                    TextEncoding = paint.TextEncoding,
+                    IsAntialias = paint.IsAntialias,
+                    Typeface = paint.Typeface,
+                    FilterQuality = paint.FilterQuality
+                };
+
+                canvas.DrawText(textWithDist, currentPos, scaledMainPaint);
+                currentPos.Y += scaledMainPaint.TextSize * 1.2f;
+            }
+
+            if (importantItems != null)
+            {
+                foreach (var item in importantItems.Take(5))
+                {
+                    var basePaint = GetItemESPPaint(item);
+                    var scaledItemPaint = new SKPaint
+                    {
+                        SubpixelText = basePaint.SubpixelText,
+                        Color = basePaint.Color,
+                        IsStroke = basePaint.IsStroke,
+                        TextSize = 12f * scale,
+                        TextAlign = basePaint.TextAlign,
+                        TextEncoding = basePaint.TextEncoding,
+                        IsAntialias = basePaint.IsAntialias,
+                        Typeface = basePaint.Typeface,
+                        FilterQuality = basePaint.FilterQuality
+                    };
+
+                    canvas.DrawText(item.ShortName, currentPos, scaledItemPaint);
+                    currentPos.Y += scaledItemPaint.TextSize * 1.2f;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Draw ESP text for living players with weapon info and important loot
+        /// </summary>
+        public static void DrawESPText(this SKPoint screenPos, SKCanvas canvas, Player player, LocalPlayer localPlayer, bool printDist, SKPaint paint, string weaponInfo, IEnumerable<LootItem> importantLoot = null)
+        {
+            var scale = ESP.ESP.Config.FontScale;
+            var currentPos = screenPos;
+
+            if (!string.IsNullOrEmpty(weaponInfo))
+            {
+                var weaponLines = weaponInfo.Split('\n');
+
+                foreach (var line in weaponLines)
+                {
+                    if (string.IsNullOrEmpty(line?.Trim()))
+                        continue;
+
+                    var scaledPaint = new SKPaint
+                    {
+                        SubpixelText = paint.SubpixelText,
+                        Color = paint.Color,
+                        IsStroke = paint.IsStroke,
+                        TextSize = 12f * scale,
+                        TextAlign = paint.TextAlign,
+                        TextEncoding = paint.TextEncoding,
+                        IsAntialias = paint.IsAntialias,
+                        Typeface = paint.Typeface,
+                        FilterQuality = paint.FilterQuality
+                    };
+
+                    canvas.DrawText(line, currentPos, scaledPaint);
+                    currentPos.Y += scaledPaint.TextSize;
+                }
+            }
+
+            if (importantLoot != null)
+            {
+                foreach (var item in importantLoot.Take(5))
+                {
+                    var basePaint = GetItemESPPaint(item);
+                    var scaledItemPaint = new SKPaint
+                    {
+                        SubpixelText = basePaint.SubpixelText,
+                        Color = basePaint.Color,
+                        IsStroke = basePaint.IsStroke,
+                        TextSize = 12f * scale,
+                        TextAlign = basePaint.TextAlign,
+                        TextEncoding = basePaint.TextEncoding,
+                        IsAntialias = basePaint.IsAntialias,
+                        Typeface = basePaint.Typeface,
+                        FilterQuality = basePaint.FilterQuality
+                    };
+
+                    canvas.DrawText(item.ShortName, currentPos, scaledItemPaint);
+                    currentPos.Y += scaledItemPaint.TextSize;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Helper method to get the appropriate ESP paint for an item based on its importance/filter
+        /// </summary>
+        private static SKPaint GetItemESPPaint(LootItem item)
+        {
+            var matchedFilter = item.MatchedFilter;
+            if (matchedFilter != null && !string.IsNullOrEmpty(matchedFilter.Color))
+            {
+                if (SKColor.TryParse(matchedFilter.Color, out var filterColor))
+                {
+                    return new SKPaint
+                    {
+                        SubpixelText = true,
+                        Color = filterColor,
+                        IsStroke = false,
+                        TextSize = 12f,
+                        TextAlign = SKTextAlign.Center,
+                        TextEncoding = SKTextEncoding.Utf8,
+                        IsAntialias = true,
+                        Typeface = CustomFonts.SKFontFamilyMedium,
+                        FilterQuality = SKFilterQuality.Low
+                    };
+                }
+            }
+
+            if (item is QuestItem)
+                return SKPaints.TextQuestHelperESP;
+            if (Program.Config.QuestHelper.Enabled && item.IsQuestCondition)
+                return SKPaints.TextQuestItemESP;
+            if (item.IsWishlisted)
+                return SKPaints.TextWishlistItemESP;
+            if (LootFilterControl.ShowBackpacks && item.IsBackpack)
+                return SKPaints.TextBackpackESP;
+            if (LootFilterControl.ShowMeds && item.IsMeds)
+                return SKPaints.TextMedsESP;
+            if (LootFilterControl.ShowFood && item.IsFood)
+                return SKPaints.TextFoodESP;
+            if (LootFilterControl.ShowWeapons && item.IsWeapon)
+                return SKPaints.TextWeaponsESP;
+            if (item.IsValuableLoot)
+                return SKPaints.TextImpLootESP;
+
+            return SKPaints.TextBasicESP;
         }
 
         #endregion

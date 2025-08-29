@@ -481,12 +481,21 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        
                                         <CheckBox x:Name="chkHighAlert" Content="High Alert Indicator" Tag="HighAlertIndicator"
-                                              Margin="0,0,0,10" Grid.Column="0"
+                                              Margin="0,0,0,10" Grid.Row="0" Grid.Column="0"
                                               Style="{StaticResource DynamicCheckBoxStyle}"/>
 
                                         <CheckBox x:Name="chkImportantIndicators" Content="Important Indicator" Tag="ImportantIndicators"
-                                              Margin="0,0,0,10" Grid.Column="1"
+                                              Margin="0,0,0,10" Grid.Row="0" Grid.Column="1"
+                                              Style="{StaticResource DynamicCheckBoxStyle}"/>
+
+                                        <CheckBox x:Name="chkShowImportantPlayerLoot" Content="Show Important Loot" Tag="ShowImportantPlayerLoot"
+                                              Margin="0,0,0,10" Grid.Row="1" Grid.Column="1"
                                               Style="{StaticResource DynamicCheckBoxStyle}"/>
                                     </Grid>
 
@@ -566,6 +575,16 @@
                                     </Grid>
 
                                     <hc:SimpleStackPanel x:Name="entitySpecificSettings" Margin="0,0,0,0">
+                                        <!-- Corpse Settings -->
+                                        <Grid x:Name="corpseSettings" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox x:Name="chkShowImportantCorpseLoot" Content="Show Important Loot" Tag="ShowImportantCorpseLoot"
+                                                      Style="{StaticResource DynamicCheckBoxStyle}" Grid.Column="0" Margin="0,0,5,8"/>
+                                        </Grid>
+                                        
                                         <!-- Door Settings -->
                                         <Grid x:Name="doorSettings" Visibility="Collapsed">
                                             <Grid.ColumnDefinitions>
@@ -594,8 +613,42 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
                                             <CheckBox x:Name="chkShowGrenadeRadius" Content="Show Radius" Tag="ShowGrenadeRadius"
-                                                      Style="{StaticResource DynamicCheckBoxStyle}" Grid.Column="0" Margin="0,0,5,8"/>
+                                                      Style="{StaticResource DynamicCheckBoxStyle}" 
+                                                      Grid.Row="0" Grid.Column="0" Margin="0,0,5,8"/>
+                                            <CheckBox x:Name="chkShowGrenadeTrail" Content="Show Trail" Tag="ShowGrenadeTrail"
+                                                      Style="{StaticResource DynamicCheckBoxStyle}" 
+                                                      Grid.Row="0" Grid.Column="1" Margin="5,0,0,8"/>
+
+                                            <TextBlock Text="Trail Duration" Style="{StaticResource LabelText}" 
+                                                       VerticalAlignment="Center" Grid.Row="1" Grid.Column="0" Margin="0,0,5,8"
+                                                       Visibility="{Binding ElementName=chkShowGrenadeTrail, Path=IsChecked, Converter={StaticResource Boolean2VisibilityConverter}}"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrTrailDuration" Tag="TrailDuration"
+                                                Minimum="0.1" Maximum="6"
+                                                SmallChange="0.1" TickFrequency="0.1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0}s" 
+                                                Grid.Row="1" Grid.Column="1" Margin="5,0,0,8"
+                                                Visibility="{Binding ElementName=chkShowGrenadeTrail, Path=IsChecked, Converter={StaticResource Boolean2VisibilityConverter}}"/>
+
+                                            <TextBlock Text="Min Trail Distance" Style="{StaticResource LabelText}" 
+                                                             VerticalAlignment="Center" Grid.Row="2" Grid.Column="0" Margin="0,0,5,0"
+                                                             Visibility="{Binding ElementName=chkShowGrenadeTrail, Path=IsChecked, Converter={StaticResource Boolean2VisibilityConverter}}"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrMinTrailDistance" Tag="MinTrailDistance"
+                                                Minimum="0.01" Maximum="4"
+                                                SmallChange="0.01" TickFrequency="0.01"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.00}m" 
+                                                Grid.Row="2" Grid.Column="1" Margin="5,0,0,8"
+                                                Visibility="{Binding ElementName=chkShowGrenadeTrail, Path=IsChecked, Converter={StaticResource Boolean2VisibilityConverter}}"/>
                                         </Grid>
                                     </hc:SimpleStackPanel>
 

@@ -58,20 +58,6 @@ namespace eft_dma_radar.UI.LootFilters
                 LoneLogging.WriteLine($"[LootFilterManager] Failed to save grouped loot filter config: {ex.Message}");
             }
         }
-
-        public static string GetGroupColor(string itemID)
-        {
-            var groups = CurrentGroups?.Groups;
-            if (groups == null) return null;
-
-            return groups
-                .Where(g => g.Enabled)
-                .OrderBy(g => g.Index)
-                .SelectMany(g => g.Items
-                    .Where(i => i.Enabled && i.ItemID == itemID)
-                    .Select(i => i.Color))
-                .FirstOrDefault(); // gets color from first match by index
-        }
     }
 
     public sealed class LootFilterGroup : INotifyPropertyChanged
@@ -90,7 +76,7 @@ namespace eft_dma_radar.UI.LootFilters
             get => index;
             set => SetField(ref index, value);
         }
-        
+
         [JsonPropertyName("notTime")]
         public int NotTime
         {
@@ -152,6 +138,8 @@ namespace eft_dma_radar.UI.LootFilters
         private bool notify = false;
         private bool enabled = true;
         private bool isStatic = true;
+        private string note = string.Empty;
+        private bool blacklist = false;
 
         [JsonPropertyName("itemID")]
         public string ItemID
@@ -178,7 +166,6 @@ namespace eft_dma_radar.UI.LootFilters
                 return ItemID;
             }
         }
-
 
         [JsonPropertyName("color")]
         public string Color
@@ -208,6 +195,23 @@ namespace eft_dma_radar.UI.LootFilters
             set => SetField(ref isStatic, value);
         }
 
+        [JsonPropertyName("note")]
+        public string Note
+        {
+            get => note;
+            set => SetField(ref note, value);
+        }
+
+        [JsonIgnore]
+        public bool HasNote => !string.IsNullOrWhiteSpace(Note);
+
+        [JsonPropertyName("blacklist")]
+        public bool Blacklist
+        {
+            get => blacklist;
+            set => SetField(ref blacklist, value);
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void OnPropertyChanged([CallerMemberName] string propertyName = "")
@@ -218,6 +222,11 @@ namespace eft_dma_radar.UI.LootFilters
             if (EqualityComparer<T>.Default.Equals(field, value)) return false;
             field = value;
             OnPropertyChanged(propertyName);
+
+            // When Note changes, also notify HasNote property change
+            if (propertyName == nameof(Note))
+                OnPropertyChanged(nameof(HasNote));
+
             return true;
         }
     }

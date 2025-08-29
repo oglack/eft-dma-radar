@@ -108,7 +108,19 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 
             return NativeHook.Call(mono_marshal_alloc, size) ?? 0;
         }
+        public static ulong AllocRWXB()
+        {
+            ulong addr = Memory.GetCodeCave();
 
+            if (!addr.IsValidVirtualAddress())
+            {
+                LoneLogging.WriteLine("[AllocRWX] -> Failed to find code cave.");
+                return 0;
+            }
+
+            LoneLogging.WriteLine("[AllocRWX] -> Using executable code cave at " + addr.ToString("X"));
+            return addr;
+        }
         public static ulong FreeBytes(ulong pv)
         {
             if (!pv.IsValidVirtualAddress())

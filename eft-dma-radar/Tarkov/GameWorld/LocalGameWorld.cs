@@ -236,12 +236,14 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 NotificationsShared.Info("Raid has ended!");
                 LoneLogging.WriteLine("Raid has ended!");
                 LootFilterControl.RemoveNonStaticGroups();
+                LootItem.ClearNotificationHistory();
                 Dispose();
             }
             catch (Exception ex)
             {
                 LoneLogging.WriteLine($"CRITICAL ERROR - Raid ended due to unhandled exception: {ex}");
                 LootFilterControl.RemoveNonStaticGroups();
+                LootItem.ClearNotificationHistory();
                 throw;
             }
         }
@@ -260,6 +262,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                     {
                         GuardManager.ClearCache();
                         LootFilterControl.RemoveNonStaticGroups();
+                        LootItem.ClearNotificationHistory();
                         throw new Exception("Not in raid!");
                     }
                     return;
@@ -286,6 +289,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             catch
             {
                 LootFilterControl.RemoveNonStaticGroups();
+                LootItem.ClearNotificationHistory();
                 return false;
             }
         }

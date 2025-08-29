@@ -54,7 +54,7 @@ namespace eft_dma_radar
     internal static class Program
     {
         internal const string Name = "EFT DMA Radar";
-        internal const string Version = "1.3.4";
+        internal const string Version = "1.5.0";
 
         /// <summary>
         /// Current application mode
@@ -70,6 +70,7 @@ namespace eft_dma_radar
         /// Path to the Configuration Folder in %AppData%
         /// </summary>
         public static DirectoryInfo ConfigPath { get; } = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "eft-dma-radar"));
+        public static DirectoryInfo CustomConfigPath { get; } = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "eft-dma-radar", "Configs"));
 
         /// <summary>
         /// Detailed version information from assembly
@@ -130,14 +131,135 @@ namespace eft_dma_radar
         {
             try
             {
+                // Ensure both directories exist
                 ConfigPath.Create();
-                var config = Config.Load();
+                if (!CustomConfigPath.Exists)
+                {
+                    CustomConfigPath.Create();
+                }
+
+                // Check if the 'lastSelectedConfig.json' exists
+                var lastSelectedConfigPath = Path.Combine(CustomConfigPath.FullName, "lastSelectedConfig.json");
+
+                string selectedConfigFile = null;
+                Config config = null;
+
+                if (File.Exists(lastSelectedConfigPath))
+                {
+                    // Step 1: Read the last selected config name
+                    var lastSelectedConfigJson = File.ReadAllText(lastSelectedConfigPath);
+                    var lastSelectedConfigNode = JsonNode.Parse(lastSelectedConfigJson);
+                    var configName = lastSelectedConfigNode?.AsObject()?["ConfigFilename"]?.ToString();
+
+                    // Step 2: If the config name exists, look for it in the CustomConfigPath
+                    if (!string.IsNullOrWhiteSpace(configName))
+                    {
+                        var customConfigFiles = Directory.GetFiles(CustomConfigPath.FullName, "*.json");
+
+                        foreach (var file in customConfigFiles)
+                        {
+                            if (Path.GetFileName(file).Equals(configName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                selectedConfigFile = Path.GetFileName(file);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Step 3: If no config found from 'lastSelectedConfig.json', look for default or first config
+                if (string.IsNullOrWhiteSpace(selectedConfigFile))
+                {
+                    var customConfigFiles = Directory.GetFiles(CustomConfigPath.FullName, "*.json");
+
+                    // 3.1 Look for a config marked as default
+                    foreach (var file in customConfigFiles)
+                    {
+                        try
+                        {
+                            string json = File.ReadAllText(file);
+                            var tempConfig = JsonSerializer.Deserialize<Config>(json, new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true,
+                                ReadCommentHandling = JsonCommentHandling.Skip,
+                                AllowTrailingCommas = true
+                            });
+
+                            if (tempConfig != null)
+                            {
+                                selectedConfigFile = Path.GetFileName(file);
+                                break;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore broken/bad files
+                            continue;
+                        }
+                    }
+
+                    // 3.2 If no default found, use the first config
+                    if (string.IsNullOrWhiteSpace(selectedConfigFile) && customConfigFiles.Length > 0)
+                    {
+                        selectedConfigFile = Path.GetFileName(customConfigFiles[0]);
+                    }
+
+                    // 3.3 If no configs in CustomConfigPath, check for legacy config
+                    if (string.IsNullOrWhiteSpace(selectedConfigFile))
+                    {
+                        var legacyConfigPath = Path.Combine(ConfigPath.FullName, "config-eft-v2.json");
+                        if (File.Exists(legacyConfigPath))
+                        {
+                            try
+                            {
+                                // Copy to CustomConfigPath but don't mark as default
+                                var destPath = Path.Combine(CustomConfigPath.FullName, "config-eft-v2.json");
+                                File.Copy(legacyConfigPath, destPath);
+
+                                selectedConfigFile = "config-eft-v2.json";
+                                LoneLogging.WriteLine("[Program] Migrated legacy config-eft-v2.json to custom config directory");
+                            }
+                            catch (Exception ex)
+                            {
+                                LoneLogging.WriteLine($"[Program] Error migrating legacy config: {ex}");
+                            }
+                        }
+                    }
+
+                    // 3.4 If still no config, create a new one
+                    if (string.IsNullOrWhiteSpace(selectedConfigFile))
+                    {
+                        selectedConfigFile = "config-eft-v2.json";
+                        config = new Config
+                        {
+                            ConfigName = "config-eft-v2",
+                            Filename = "config-eft-v2.json"
+                        };
+
+                        var newFilePath = Path.Combine(CustomConfigPath.FullName, selectedConfigFile);
+                        File.WriteAllText(newFilePath, JsonSerializer.Serialize(config, new JsonSerializerOptions
+                        {
+                            WriteIndented = true,
+                            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                        }));
+
+                        LoneLogging.WriteLine("[Program] Created new config-eft-v2.json");
+                    }
+                }
+
+                // Step 4: Load the selected config
+                if (config == null)
+                {
+                    config = Config.Load(selectedConfigFile);
+                }
+
                 SharedProgram.Initialize(ConfigPath, config);
                 Config = config;
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.ToString());
+                MessageBox.Show($"Failed to initialize configuration: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 throw;
             }
         }
@@ -189,6 +311,10 @@ namespace eft_dma_radar
                 {
                     LoneLogging.WriteLine($"[Program] Version check failed: {result.Error}");
                 }
+                await mainWindow.Dispatcher.InvokeAsync(() =>
+                {
+                    mainWindow.UpdateWindowTitle(Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName));
+                });                  
             }
             catch (Exception ex)
             {
@@ -468,7 +594,7 @@ namespace eft_dma_radar
         /// </summary>
         private static class GitHubVersionChecker
         {
-            private const string GITHUB_API_URL = "https://api.github.com/repos/oglack/eft-dma-radar/releases/latest";
+            private const string GITHUB_API_URL = "https://api.github.com/repos/oglack/arena-dma-radar/releases/latest";
 
             private static readonly HttpClient _httpClient = new HttpClient();
             private static DateTime _lastCheck = DateTime.MinValue;

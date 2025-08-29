@@ -68,7 +68,7 @@
 
                                 <CheckBox x:Name="chkAntiPage" Content="Anti-Page" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Row="1" Grid.Column="1" 
+                                          Grid.Row="1" Grid.Column="2" 
                                           Margin="5,0,0,8" Tag="AntiPage"/>
 
                                 <CheckBox x:Name="chkRageMode" Content="Rage Mode" 
@@ -78,7 +78,7 @@
 
                                 <Button x:Name="btnAntiAFK" Content="Anti AFK" 
                                         Grid.Row="4" Grid.Column="0"
-                                        Style="{StaticResource ButtonPrimary}"/>
+                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Left"/>
 
                                 <Button x:Name="btnUnlockMaps" Content="Unlock maps"
                                         Grid.Row="4" Grid.Column="1"
@@ -86,7 +86,7 @@
 
                                 <Button x:Name="btnGymHack" Content="Gym Hack"
                                         Grid.Row="4" Grid.Column="2"
-                                        Style="{StaticResource ButtonPrimary}"/>
+                                        Style="{StaticResource ButtonPrimary}" HorizontalAlignment="Right"/>
                             </Grid>
                         </hc:SimpleStackPanel>
                     </Expander>
@@ -425,17 +425,17 @@
                                           Grid.Row="0" Grid.Column="1"
                                           Margin="5,0,0,8" Tag="FastDuck"/>
 
-                                <CheckBox x:Name="chkMuleMode" Content="M.U.L.E Mode" 
-                                          Style="{StaticResource DynamicCheckBoxStyle}"
-                                          Grid.Row="1" Grid.Column="1"
-                                          Margin="5,0,0,0" Tag="MuleMode"/>
-
                                 <CheckBox x:Name="chkNoInertia" Content="No Inertia" 
                                           Style="{StaticResource DynamicCheckBoxStyle}"
                                           Grid.Row="1" Grid.Column="0" 
                                           Margin="0,0,5,0" Tag="NoInertia"/>
+
+                                <CheckBox x:Name="chkMuleMode" Content="M.U.L.E Mode" 
+                                          Style="{StaticResource DynamicCheckBoxStyle}"
+                                          Grid.Row="1" Grid.Column="1"
+                                          Margin="5,0,0,0" Tag="MuleMode"/>
                             </Grid>
-                            
+
                             <Grid Grid.Row="1" Margin="0,0,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -484,7 +484,6 @@
                                             Padding="6" Grid.Column="1"
                                             hc:IconElement.Width="16"
                                             hc:IconElement.Geometry="{StaticResource GearGeometry}"/>
-                                            
                                 </Grid>
                             </Grid>
 
@@ -576,9 +575,9 @@
 
                                 <Grid Grid.Column="1">
                                     <CheckBox x:Name="chkNoFall" Content="No Fall" 
-                                              Style="{StaticResource DynamicCheckBoxStyle}" 
-                                              Grid.Column="0" Tag="NoFall"
-                                              VerticalAlignment="Stretch" Margin="5,6,28,6"/>
+                                            Style="{StaticResource DynamicCheckBoxStyle}" 
+                                            Grid.Column="0" Tag="NoFall"
+                                            VerticalAlignment="Stretch" Margin="5,6,28,6"/>
                                 </Grid>
                             </Grid>
 
@@ -651,7 +650,7 @@
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
                                           Grid.Column="0" Grid.Row="1" Margin="0,0,5,0" Tag="ClearWeather"/>
                             </Grid>
-                            
+
                             <Grid Grid.Row="1" Margin="0,0,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1144,9 +1143,6 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <Grid Grid.Row="0" Margin="0,10,0,6">
@@ -1154,53 +1150,45 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
                                 <CheckBox x:Name="chkStreamerMode" Content="Streamer Mode" 
-                                          Style="{StaticResource DynamicCheckBoxStyle}" Grid.Column="0" 
-                                          Margin="0,0,5,0" Tag="StreamerMode"/>
+                                          Style="{StaticResource DynamicCheckBoxStyle}"
+                                          Grid.Row="0" Grid.Column="0" 
+                                          Margin="0,0,5,8" Tag="StreamerMode"/>
 
                                 <CheckBox x:Name="chkHideRaidCode" Content="Hide Raid Code" 
-                                          Style="{StaticResource DynamicCheckBoxStyle}" Grid.Column="1" 
-                                          Margin="5,0,0,0" Tag="HideRaidCode"/>
-                            </Grid>
-
-                            <Grid Grid.Row="1" Margin="0,2,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                                          Style="{StaticResource DynamicCheckBoxStyle}"
+                                          Grid.Row="0" Grid.Column="1" 
+                                          Margin="5,0,0,8" Tag="HideRaidCode"/>
 
                                 <CheckBox x:Name="chkInstantPlant" Content="Instant Plant" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Column="0" 
-                                          Margin="0,0,5,0" Tag="InstantPlant"/>
+                                          Grid.Row="1" Grid.Column="0" 
+                                          Margin="0,0,5,8" Tag="InstantPlant"/>
 
                                 <CheckBox x:Name="chkMedPanel" Content="Med Panel" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Column="1" 
-                                          Margin="5,0,0,0" Tag="MedPanel"/>
-                            </Grid>
-
-                            <Grid Grid.Row="2" Margin="0,2,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                                          Grid.Row="1" Grid.Column="1"
+                                          Margin="5,0,0,8" Tag="MedPanel"/>
 
                                 <CheckBox x:Name="chkDisableInventoryBlur" Content="Disable Inventory Blur" 
                                           Style="{StaticResource DynamicCheckBoxStyle}" 
-                                          Grid.Column="0" 
+                                          Grid.Row="2" Grid.Column="0"
                                           Margin="0,0,5,0" Tag="DisableInventoryBlur"/>
                             </Grid>
 
-                            <Grid Grid.Row="3" Margin="0,2,0,0">
+                            <Grid Grid.Row="1" Margin="0,-4,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <Grid Grid.Column="0">
+                                <Grid Grid.Column="0" Margin="0,0,5,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -1221,9 +1209,31 @@
                                             hc:IconElement.Width="16"
                                             hc:IconElement.Geometry="{StaticResource GearGeometry}"/>
                                 </Grid>
+
+                                <Grid Grid.Column="1" Margin="5,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox x:Name="chVisCheck" Content="Visibility Check" 
+                                          Style="{StaticResource DynamicCheckBoxStyle}" 
+                                          Grid.Column="0" Tag="VisCheck"
+                                          VerticalAlignment="Center"/>
+
+                                    <Button x:Name="btnVisCheckConfig" Tag="VisCheckPanel"
+                                            Style="{StaticResource ButtonIcon}"
+                                            ToolTip="Configure VisCheck scale"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Width="28" Height="28"
+                                            Padding="6" Grid.Column="1"
+                                            hc:IconElement.Width="16"
+                                            hc:IconElement.Geometry="{StaticResource GearGeometry}"/>
+                                </Grid>
                             </Grid>
 
-                            <Grid Grid.Row="4">
+                            <Grid Grid.Row="3">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
@@ -1235,20 +1245,15 @@
                                         Padding="5"
                                         Visibility="Collapsed">
                                     <Grid Margin="5,3,5,3">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="40"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
 
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="40"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBlock Text="Scale" Style="{StaticResource LabelText}" 
+                                        <TextBlock Text="Scale" Style="{StaticResource LabelText}" 
                                                        VerticalAlignment="Center" Grid.Column="0"/>
-                                            <controls:TextValueSlider
+                                        
+                                        <controls:TextValueSlider
                                                 x:Name="sldrBigHeadScale"
                                                 Minimum="1" Maximum="3"
                                                 MinContent="Normal" MaxContent="Big"
@@ -1256,6 +1261,82 @@
                                                 IsSnapToTickEnabled="True"
                                                 ContentStringFormat="{}{0:0.0x}" 
                                                 Grid.Column="1" Tag="BigHeadScale"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="pnlVisCheck" Grid.Column="1" Margin="5,0,0,8"
+                                        BorderBrush="#40808080" BorderThickness="1" 
+                                        Background="#10000000" CornerRadius="4"
+                                        Padding="5"
+                                        Visibility="Collapsed">
+                                    <Grid Margin="5,3,5,3">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Grid Grid.Row="0" Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox x:Name="chkIgnoreAi" Content="Ignore AI" 
+                                                       Style="{StaticResource DynamicCheckBoxStyle}" 
+                                                       Grid.Column="0" 
+                                                       Margin="0,0,0,0" Tag="IgnoreAi"/>
+                                        </Grid>
+
+                                        <Grid Grid.Row="1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="Low Dist" Style="{StaticResource LabelText}" 
+                                                       VerticalAlignment="Center" Grid.Column="0"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrVisCheckLowDistance"
+                                                Minimum="1" Maximum="500"
+                                                SmallChange="1" TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0x}" 
+                                                Grid.Column="1" Tag="VisLowDist"/>
+                                        </Grid>
+
+                                        <Grid Grid.Row="2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="Mid Dist" Style="{StaticResource LabelText}" 
+                                                       VerticalAlignment="Center" Grid.Column="0"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrVisCheckMidDistance"
+                                                Minimum="1" Maximum="500"
+                                                SmallChange="1" TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0x}" 
+                                                Grid.Column="1" Tag="VisMidDist"/>
+                                        </Grid>
+
+                                        <Grid Grid.Row="3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="Far Dist" Style="{StaticResource LabelText}" 
+                                                       VerticalAlignment="Center" Grid.Column="0"/>
+                                            <controls:TextValueSlider
+                                                x:Name="sldrVisCheckFarDistance"
+                                                Minimum="1" Maximum="500"
+                                                SmallChange="1" TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                ContentStringFormat="{}{0:0.0x}" 
+                                                Grid.Column="1" Tag="VisfarDist"/>
                                         </Grid>
                                     </Grid>
                                 </Border>

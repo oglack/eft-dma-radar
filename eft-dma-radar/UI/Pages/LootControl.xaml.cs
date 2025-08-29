@@ -47,7 +47,9 @@ namespace eft_dma_radar.UI.Pages
         {
             "Show Meds",
             "Show Food",
-            "Show Backpacks"
+            "Show Weapons",
+            "Show Backpacks",
+            "Corpse Markers (X)"
         };
         #endregion
 
@@ -243,7 +245,9 @@ namespace eft_dma_radar.UI.Pages
             {
                 ["Show Meds"] = LootFilterControl.ShowMeds,
                 ["Show Food"] = LootFilterControl.ShowFood,
-                ["Show Backpacks"] = LootFilterControl.ShowBackpacks
+                ["Show Backpacks"] = LootFilterControl.ShowBackpacks,
+                ["Show Weapons"] = LootFilterControl.ShowWeapons,
+                ["Corpse Markers (X)"] = Config.ShowCorpseMarkers
             };
 
             foreach (CheckComboBoxItem item in ccbLootFilters.Items)
@@ -286,13 +290,13 @@ namespace eft_dma_radar.UI.Pages
                 {
                     ccbLootFilters.Items.Add(new CheckComboBoxItem { Content = option });
                 }
-
-                UpdateLootFilterSelections();
             }
             finally
             {
                 _isLoadingLootFilterSettings = false;
             }
+
+            UpdateLootFilterSelections();
         }
 
         private void ToggleLootControls()
@@ -420,8 +424,14 @@ namespace eft_dma_radar.UI.Pages
                     case "ShowFood":
                         LootFilterControl.ShowFood = value;
                         break;
+                    case "ShowWeapons":
+                        LootFilterControl.ShowWeapons = value;
+                        break;
                     case "ShowBackpacks":
                         LootFilterControl.ShowBackpacks = value;
+                        break;
+                    case "CorpseMarkers(X)":
+                        Config.ShowCorpseMarkers = value;
                         break;
                     case "StaticContainers":
                         Config.Containers.Show = value;
@@ -504,7 +514,9 @@ namespace eft_dma_radar.UI.Pages
 
             LootFilterControl.ShowMeds = IsFilterOptionSelected("Show Meds");
             LootFilterControl.ShowFood = IsFilterOptionSelected("Show Food");
+            LootFilterControl.ShowWeapons = IsFilterOptionSelected("Show Weapons");
             LootFilterControl.ShowBackpacks = IsFilterOptionSelected("Show Backpacks");
+            Config.ShowCorpseMarkers = IsFilterOptionSelected("Corpse Markers (X)");
 
             Config.Save();
             LoneLogging.WriteLine("Saved loot filter settings");

@@ -1357,6 +1357,8 @@ namespace eft_dma_radar.UI.Pages
             chkHighAlert.Unchecked += FuserCheckbox_Checked;
             chkImportantIndicators.Checked += FuserCheckbox_Checked;
             chkImportantIndicators.Unchecked += FuserCheckbox_Checked;
+            chkShowImportantPlayerLoot.Checked += FuserCheckbox_Checked;
+            chkShowImportantPlayerLoot.Unchecked += FuserCheckbox_Checked;
             sldrPlayerTypeRenderDistance.ValueChanged += FuserSlider_ValueChanged;
             cboPlayerRenderMode.SelectionChanged += FuserComboBox_SelectionChanged;
             ccbFuserPlayerInformation.SelectionChanged += espPlayerInfoCheckComboBox_SelectionChanged;
@@ -1364,6 +1366,8 @@ namespace eft_dma_radar.UI.Pages
 
             // Entity Information
             cboFuserEntityType.SelectionChanged += cboFuserEntityType_SelectionChanged;
+            chkShowImportantCorpseLoot.Checked += FuserCheckbox_Checked;
+            chkShowImportantCorpseLoot.Unchecked += FuserCheckbox_Checked;
             chkShowLockedDoors.Checked += FuserCheckbox_Checked;
             chkShowLockedDoors.Unchecked += FuserCheckbox_Checked;
             chkShowUnlockedDoors.Checked += FuserCheckbox_Checked;
@@ -1372,6 +1376,8 @@ namespace eft_dma_radar.UI.Pages
             chkShowTripwireLine.Unchecked += FuserCheckbox_Checked;
             chkShowGrenadeRadius.Checked += FuserCheckbox_Checked;
             chkShowGrenadeRadius.Unchecked += FuserCheckbox_Checked;
+            sldrTrailDuration.ValueChanged += FuserSlider_ValueChanged;
+            sldrMinTrailDistance.ValueChanged += FuserSlider_ValueChanged;
             cboEntityRenderMode.SelectionChanged += FuserComboBox_SelectionChanged;
             sldrEntityTypeRenderDistance.ValueChanged += FuserSlider_ValueChanged;
             ccbFuserEntityInformation.SelectionChanged += espEntityInfoCheckComboBox_SelectionChanged;
@@ -1474,6 +1480,7 @@ namespace eft_dma_radar.UI.Pages
 
                 chkHighAlert.IsChecked = settings.HighAlert;
                 chkImportantIndicators.IsChecked = settings.ImportantIndicator;
+                chkShowImportantPlayerLoot.IsChecked = settings.ShowImportantLoot;
                 sldrPlayerTypeRenderDistance.Value = settings.RenderDistance;
 
                 sldrMinimumKD.Value = settings.MinKD;
@@ -1532,6 +1539,7 @@ namespace eft_dma_radar.UI.Pages
             settings.Information.Clear();
             settings.HighAlert = chkHighAlert.IsChecked == true;
             settings.ImportantIndicator = chkImportantIndicators.IsChecked == true;
+            settings.ShowImportantLoot = chkShowImportantPlayerLoot.IsChecked == true;
             settings.RenderDistance = (int)sldrPlayerTypeRenderDistance.Value;
             settings.MinKD = (float)sldrMinimumKD.Value;
 
@@ -1621,6 +1629,9 @@ namespace eft_dma_radar.UI.Pages
 
                 switch (entityType)
                 {
+                    case "Corpse":
+                        chkShowImportantCorpseLoot.IsChecked = settings.ShowImportantLoot;
+                        break;
                     case "Door":
                         chkShowLockedDoors.IsChecked = settings.ShowLockedDoors;
                         chkShowUnlockedDoors.IsChecked = settings.ShowUnlockedDoors;
@@ -1630,6 +1641,9 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "Grenade":
                         chkShowGrenadeRadius.IsChecked = settings.ShowRadius;
+                        chkShowGrenadeTrail.IsChecked = settings.ShowGrenadeTrail;
+                        sldrTrailDuration.Value = settings.TrailDuration;
+                        sldrMinTrailDistance.Value = settings.MinTrailDistance;
                         break;
                 }
 
@@ -1647,12 +1661,16 @@ namespace eft_dma_radar.UI.Pages
                 _isLoadingFuserEntitySettings = false;
             }
 
+            corpseSettings.Visibility = Visibility.Collapsed;
             doorSettings.Visibility = Visibility.Collapsed;
             tripwireSettings.Visibility = Visibility.Collapsed;
             grenadeSettings.Visibility = Visibility.Collapsed;
 
             switch (_currentFuserEntityType)
             {
+                case "Corpse":
+                    corpseSettings.Visibility = Visibility.Visible;
+                    break;
                 case "Door":
                     doorSettings.Visibility = Visibility.Visible;
                     break;
@@ -1683,13 +1701,14 @@ namespace eft_dma_radar.UI.Pages
             {
                 var renderModeText = selectedItem.Content.ToString();
                 if (Enum.TryParse<EntityRenderMode>(renderModeText, out var renderMode))
-                {
                     settings.RenderMode = renderMode;
-                }
             }
 
             switch (entityType)
             {
+                case "Corpse":
+                    settings.ShowImportantLoot = chkShowImportantCorpseLoot.IsChecked == true;
+                    break;
                 case "Door":
                     settings.ShowLockedDoors = chkShowLockedDoors.IsChecked == true;
                     settings.ShowUnlockedDoors = chkShowUnlockedDoors.IsChecked == true;
@@ -1699,6 +1718,7 @@ namespace eft_dma_radar.UI.Pages
                     break;
                 case "Grenade":
                     settings.ShowRadius = chkShowGrenadeRadius.IsChecked == true;
+                    settings.ShowGrenadeTrail = chkShowGrenadeTrail.IsChecked == true;
                     break;
             }
 
@@ -1818,8 +1838,9 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextCorpseESP.TextSize = 12f * fontScale;
             SKPaints.TextImpLootESP.TextSize = 12f * fontScale;
             SKPaints.TextContainerLootESP.TextSize = 11f * fontScale;
-            SKPaints.TextFoodESP.TextSize = 12f * fontScale;
             SKPaints.TextMedsESP.TextSize = 12f * fontScale;
+            SKPaints.TextFoodESP.TextSize = 12f * fontScale;
+            SKPaints.TextWeaponsESP.TextSize = 12f * fontScale;
             SKPaints.TextBackpackESP.TextSize = 12f * fontScale;
             SKPaints.TextQuestItemESP.TextSize = 12f * fontScale;
             SKPaints.TextAirdropESP.TextSize = 12f * fontScale;
@@ -1864,7 +1885,8 @@ namespace eft_dma_radar.UI.Pages
         private void ScaleESPLines()
         {
             var lineScale = Config.ESP.LineScale;
-
+            
+            SKPaints.PaintVisible.StrokeWidth = 1.5f * lineScale;
             SKPaints.PaintUSECESP.StrokeWidth = 1.5f * lineScale;
             SKPaints.PaintBEARESP.StrokeWidth = 1.5f * lineScale;
             SKPaints.PaintScavESP.StrokeWidth = 1.5f * lineScale;
@@ -1883,8 +1905,9 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.PaintCorpseESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintImpLootESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintContainerLootESP.StrokeWidth = 1f * lineScale;
-            SKPaints.PaintFoodESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintMedsESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintFoodESP.StrokeWidth = 1f * lineScale;
+            SKPaints.PaintWeaponsESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintBackpackESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintQuestItemESP.StrokeWidth = 1f * lineScale;
             SKPaints.PaintAirdropESP.StrokeWidth = 1f * lineScale;
@@ -1937,6 +1960,7 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.PaintMiniAirdrop.StrokeWidth = 3 * newScale;
             SKPaints.PaintMiniMeds.StrokeWidth = 3 * newScale;
             SKPaints.PaintMiniFood.StrokeWidth = 3 * newScale;
+            SKPaints.PaintMiniWeapons.StrokeWidth = 3 * newScale;
             SKPaints.PaintMiniBackpacks.StrokeWidth = 3 * newScale;
             SKPaints.PaintMiniQuestItem.StrokeWidth = 3 * newScale;
             SKPaints.PaintMiniWishlistItem.StrokeWidth = 3 * newScale;
@@ -2015,7 +2039,9 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "HighAlertIndicator":
                     case "ImportantIndicators":
+                    case "ShowImportantPlayerLoot":
                         SavePlayerTypeSettings(); break;
+                    case "ShowImportantCorpseLoot":
                     case "ShowLockedDoors":
                     case "ShowUnlockedDoors":
                     case "ShowTripwireLine":
@@ -2046,6 +2072,12 @@ namespace eft_dma_radar.UI.Pages
                     case "FuserLineScale":
                         Config.ESP.LineScale = floatValue;
                         ScaleESPLines();
+                        break;
+                    case "TrailDuration":
+                        Config.ESP.EntityTypeESPSettings.GetSettings("Grenade").TrailDuration = floatValue;
+                        break;
+                        case "MinTrailDistance":
+                        Config.ESP.EntityTypeESPSettings.GetSettings("Grenade").MinTrailDistance = floatValue;
                         break;
                     case "MinimumKD":
                         SavePlayerTypeSettings();

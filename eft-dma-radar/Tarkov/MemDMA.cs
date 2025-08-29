@@ -81,7 +81,7 @@ namespace eft_dma_radar.Tarkov
         /// Current Map ID.
         /// </summary>
         public string MapID => Game?.MapID;
-        public bool IsOffline => LocalGameWorld.IsOffline;
+        public override bool IsOffline => LocalGameWorld.IsOffline;
         
         /// <summary>
         /// True if currently in a raid/match, otherwise False.
@@ -577,7 +577,24 @@ namespace eft_dma_radar.Tarkov
             }
             _actualMemory.ReadBuffer(addr, buffer, useCache, allowPartialRead);
         }
-
+        /// <summary>
+        /// Read memory into a buffer.
+        /// </summary>
+        public byte[] ReadBuffer(ulong addr, int size, bool useCache = true, bool allowIncompleteRead = false)
+        {
+            try
+            {
+                uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
+                var buf = Process.MemRead(addr, (uint)size, flags);
+                if (!allowIncompleteRead && buf.Length != size)
+                    throw new Exception("Incomplete memory read!");
+                return buf;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[DMA] ERROR reading buffer at 0x{addr:X}", ex);
+            }
+        }   
         public void ReadBufferEnsure<T>(ulong addr, Span<T> buffer1) where T : unmanaged
         {
             if (_actualMemory == null)

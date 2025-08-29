@@ -5,6 +5,7 @@ namespace eft_dma_radar.UI
 {
     public enum EspColorOption
     {
+        Visible,
         Friendly,
         USEC,
         BEAR,
@@ -22,6 +23,7 @@ namespace eft_dma_radar.UI
         ContainerLoot,
         MedsFilterLoot,
         FoodFilterLoot,
+        WeaponsFilterLoot,
         BackpackFilterLoot,
         QuestLoot,
         Airdrop,
@@ -73,6 +75,7 @@ namespace eft_dma_radar.UI
         internal static Dictionary<EspColorOption, string> GetDefaultColors() =>
             new()
             {
+                [EspColorOption.Visible] = SKColors.LimeGreen.ToString(),
                 [EspColorOption.Friendly] = SKColors.LimeGreen.ToString(),
                 [EspColorOption.USEC] = SKColors.Red.ToString(),
                 [EspColorOption.BEAR] = SKColors.Blue.ToString(),
@@ -94,6 +97,7 @@ namespace eft_dma_radar.UI
                 [EspColorOption.Corpse] = SKColors.Silver.ToString(),
                 [EspColorOption.MedsFilterLoot] = SKColors.LightSalmon.ToString(),
                 [EspColorOption.FoodFilterLoot] = SKColors.CornflowerBlue.ToString(),
+                [EspColorOption.WeaponsFilterLoot] = SKColor.Parse("FFE068").ToString(),
                 [EspColorOption.BackpackFilterLoot] = SKColor.Parse("00b02c").ToString(),
                 [EspColorOption.Explosives] = SKColors.OrangeRed.ToString(),
                 [EspColorOption.Switches] = SKColors.Orange.ToString(),
@@ -134,6 +138,10 @@ namespace eft_dma_radar.UI
                         throw new Exception($"Invalid Color Value for {color.Key}!");
                     switch (color.Key)
                     {
+                        case EspColorOption.Visible:
+                            SKPaints.PaintVisible.Color = skColor;
+                            SKPaints.TextVisible.Color = skColor;
+                            break;
                         case EspColorOption.Friendly:
                             SKPaints.PaintFriendlyESP.Color = skColor;
                             SKPaints.TextFriendlyESP.Color = skColor;
@@ -213,6 +221,10 @@ namespace eft_dma_radar.UI
                         case EspColorOption.FoodFilterLoot:
                             SKPaints.PaintFoodESP.Color = skColor;
                             SKPaints.TextFoodESP.Color = skColor;
+                            break;
+                        case EspColorOption.WeaponsFilterLoot:
+                            SKPaints.PaintWeaponsESP.Color = skColor;
+                            SKPaints.TextWeaponsESP.Color = skColor;
                             break;
                         case EspColorOption.BackpackFilterLoot:
                             SKPaints.PaintBackpackESP.Color = skColor;

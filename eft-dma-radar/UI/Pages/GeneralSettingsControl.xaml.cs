@@ -1,6 +1,9 @@
-﻿using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
+﻿using eft_dma_radar.Tarkov;
+using eft_dma_radar.Tarkov.API;
+using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
 using eft_dma_radar.Tarkov.Features;
 using eft_dma_radar.Tarkov.Features.MemoryWrites;
+using eft_dma_radar.Tarkov.Features.MemoryWrites.Patches;
 using eft_dma_radar.Tarkov.GameWorld;
 using eft_dma_radar.Tarkov.WebRadar;
 using eft_dma_radar.UI.ESP;
@@ -15,6 +18,8 @@ using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Misc.Data.EFT;
 using eft_dma_shared.Common.UI.Controls;
 using eft_dma_shared.Common.Unity;
+using eft_dma_shared.Common.Unity.LowLevel;
+using eft_dma_shared.Common.Unity.LowLevel.Hooks;
 using eft_dma_shared.Common.Unity.LowLevel.PhysX;
 using HandyControl.Controls;
 using HandyControl.Data;
@@ -23,6 +28,7 @@ using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
@@ -45,6 +51,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = eft_dma_shared.Common.UI.Controls.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using RadioButton = System.Windows.Controls.RadioButton;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace eft_dma_radar.UI.Pages
@@ -74,6 +81,9 @@ namespace eft_dma_radar.UI.Pages
 
         private const int INTERVAL = 100; // 0.1 second
         private const int HK_ZoomAmt = 2; // amt to zoom
+
+        private bool _uiReady = false;
+        private bool _suppressApiEvents = false;
 
         private PopupWindow _openColorPicker;
         private Dictionary<string, SolidColorBrush> _brushFields = new Dictionary<string, SolidColorBrush>();
@@ -151,6 +161,7 @@ namespace eft_dma_radar.UI.Pages
                     expMonitorSettings,
                     expQuestHelper,
                     expWebRadar,
+                    expPlayerAPIService,
                     expPlayerColors,
                     expLootColors,
                     expOtherColors,
@@ -166,6 +177,7 @@ namespace eft_dma_radar.UI.Pages
 
                     InitializeControlEvents();
                     LoadSettings();
+                    InitializeConfigTab();
                 }
                 catch (TimeoutException ex)
                 {
@@ -207,9 +219,10 @@ namespace eft_dma_radar.UI.Pages
                 LoadGeneralSettings();
                 LoadColorSettings();
                 LoadHotkeySettings();
+                LoadApiSettings();
+                _uiReady = true;  // mark UI ready only after all programmatic changes done
             });
         }
-
         private void OpenContextMenu()
         {
             var btn = btnMenu;
@@ -218,40 +231,6 @@ namespace eft_dma_radar.UI.Pages
             {
                 btn.ContextMenu.PlacementTarget = btn;
                 btn.ContextMenu.IsOpen = true;
-            }
-        }
-
-        private void ExportConfigToClipboard()
-        {
-            try
-            {
-                if (Config == null)
-                {
-                    NotificationsShared.Warning("[Config] No configuration available to export.");
-                    return;
-                }
-
-                var configForExport = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(Config));
-                configForExport.Cache = null;
-                configForExport.WebRadar = null;
-
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                };
-
-                var jsonData = JsonSerializer.Serialize(configForExport, options);
-                Clipboard.SetText(jsonData);
-
-                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache & WebRadar settings excluded)");
-                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache & WebRadar)");
-            }
-            catch (Exception ex)
-            {
-                LoneLogging.WriteLine($"[Config] Export error: {ex}");
-                NotificationsShared.Error($"[Config] Export error: {ex.Message}");
             }
         }
 
@@ -638,6 +617,8 @@ namespace eft_dma_radar.UI.Pages
             chkImportantIndicator.Unchecked += GeneralCheckbox_Checked;
             chkHighAlert.Checked += GeneralCheckbox_Checked;
             chkHighAlert.Unchecked += GeneralCheckbox_Checked;
+            chkShowImportantPlayerLoot.Checked += GeneralCheckbox_Checked;
+            chkShowImportantPlayerLoot.Unchecked += GeneralCheckbox_Checked;
             sldrPlayerTypeRenderDistance.ValueChanged += GeneralSlider_ValueChanged;
             sldrPlayerTypeAimlineLength.ValueChanged += GeneralSlider_ValueChanged;
             ccbInformation.SelectionChanged += playerInfoCheckComboBox_SelectionChanged;
@@ -647,6 +628,8 @@ namespace eft_dma_radar.UI.Pages
             cboEntityType.SelectionChanged += cboEntityType_SelectionChanged;
             sldrEntityTypeRenderDistance.ValueChanged += GeneralSlider_ValueChanged;
             ccbEntityInformation.SelectionChanged += entityInfoCheckComboBox_SelectionChanged;
+            chkShowImportantCorpseLoot.Checked += GeneralCheckbox_Checked;
+            chkShowImportantCorpseLoot.Unchecked += GeneralCheckbox_Checked;
             chkExplosiveRadius.Checked += GeneralCheckbox_Checked;
             chkExplosiveRadius.Unchecked += GeneralCheckbox_Checked;
             chkShowLockedDoors.Checked += GeneralCheckbox_Checked;
@@ -687,6 +670,13 @@ namespace eft_dma_radar.UI.Pages
             txtWebRadarPort.TextChanged += GeneralTextbox_TextChanged;
             txtWebRadarTickRate.TextChanged += GeneralTextbox_TextChanged;
             txtWebRadarPassword.TextChanged += GeneralTextbox_TextChanged;
+
+            // Player API Service
+            rdbTarkovDev.Checked += GeneralRadioButton_Checked;
+            rdbEftApiTech.Checked += GeneralRadioButton_Checked;
+            btnCreateApiFile.Click += btnCreateApiFile_Click;
+            btnOpenApiFolder.Click += btnOpenApiFolder_Click;
+            btnClearApiFile.Click += btnClearApiFile_Click;
         }
 
         private void LoadGeneralSettings()
@@ -710,12 +700,14 @@ namespace eft_dma_radar.UI.Pages
             RefreshQuestHelper();
 
             // Web Radar Server
-            chkWebRadarUPnP.IsChecked = Config.WebRadar.UPnP;
-            txtWebRadarClientURL.Text = Config.WebRadar.WebClientURL;
-            txtWebRadarBindIP.Text = Config.WebRadar.IP;
-            txtWebRadarPort.Text = Config.WebRadar.Port;
-            txtWebRadarTickRate.Text = Config.WebRadar.TickRate;
-            txtWebRadarPassword.Text = Config.WebRadar.Password;
+            InitializeWebRadar();
+
+            // Player API Service
+            var alternateService = Config.AlternateProfileService;
+            if (alternateService)
+                rdbEftApiTech.IsChecked = true;
+            else
+                rdbTarkovDev.IsChecked = true;
 
             UpdateUIScale();
 
@@ -936,6 +928,7 @@ namespace eft_dma_radar.UI.Pages
                 chkHeightIndicator.IsChecked = settings.HeightIndicator;
                 chkImportantIndicator.IsChecked = settings.ImportantIndicator;
                 chkHighAlert.IsChecked = settings.HighAlert;
+                chkShowImportantPlayerLoot.IsChecked = settings.ShowImportantLoot;
                 sldrPlayerTypeRenderDistance.Value = settings.RenderDistance;
                 sldrPlayerTypeAimlineLength.Value = settings.AimlineLength;
                 sldrMinimumKD.Value = settings.MinKD;
@@ -991,6 +984,7 @@ namespace eft_dma_radar.UI.Pages
             settings.HeightIndicator = chkHeightIndicator.IsChecked == true;
             settings.ImportantIndicator = chkImportantIndicator.IsChecked == true;
             settings.HighAlert = chkHighAlert.IsChecked == true;
+            settings.ShowImportantLoot = chkShowImportantPlayerLoot.IsChecked == true;
             settings.RenderDistance = (int)sldrPlayerTypeRenderDistance.Value;
             settings.AimlineLength = (int)sldrPlayerTypeAimlineLength.Value;
             settings.MinKD = (float)sldrMinimumKD.Value;
@@ -1028,6 +1022,9 @@ namespace eft_dma_radar.UI.Pages
 
                 switch (entityType)
                 {
+                    case "Corpse":
+                        chkShowImportantCorpseLoot.IsChecked = settings.ShowImportantLoot;
+                        break;
                     case "Grenade":
                         chkExplosiveRadius.IsChecked = settings.ShowRadius;
                         break;
@@ -1048,6 +1045,7 @@ namespace eft_dma_radar.UI.Pages
                 _isLoadingEntitySettings = false;
             }
 
+            corpseSettings.Visibility = Visibility.Collapsed;
             grenadeSettings.Visibility = Visibility.Collapsed;
             doorSettings.Visibility = Visibility.Collapsed;
             exfilSettings.Visibility = Visibility.Collapsed;
@@ -1055,6 +1053,9 @@ namespace eft_dma_radar.UI.Pages
 
             switch (_currentEntityType)
             {
+                case "Corpse":
+                    corpseSettings.Visibility = Visibility.Visible;
+                    break;
                 case "Grenade":
                     grenadeSettings.Visibility = Visibility.Visible;
                     break;
@@ -1086,6 +1087,9 @@ namespace eft_dma_radar.UI.Pages
 
             switch (entityType)
             {
+                case "Corpse":
+                    settings.ShowImportantLoot = chkShowImportantCorpseLoot.IsChecked == true;
+                    break;
                 case "Grenade":
                     settings.ShowRadius = chkExplosiveRadius.IsChecked == true;
                     break;
@@ -1114,12 +1118,12 @@ namespace eft_dma_radar.UI.Pages
                     var existingIds = QuestItems.Select(q => q.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     var newQuestItems = new List<QuestListItem>();
 
-                    foreach (var quest in questManager.ActiveQuests)
+                    foreach (var questId in questManager.AllStartedQuestIds)
                     {
-                        if (!existingIds.Contains(quest.Id))
+                        if (!existingIds.Contains(questId))
                         {
-                            var enabled = !Config.QuestHelper.BlacklistedQuests.Contains(quest.Id, StringComparer.OrdinalIgnoreCase);
-                            newQuestItems.Add(new QuestListItem(quest.Id, enabled));
+                            var enabled = !Config.QuestHelper.BlacklistedQuests.Contains(questId, StringComparer.OrdinalIgnoreCase);
+                            newQuestItems.Add(new QuestListItem(questId, enabled));
                         }
                     }
 
@@ -1130,7 +1134,7 @@ namespace eft_dma_radar.UI.Pages
                         QuestItems.Add(item);
                     }
 
-                    var activeQuestIds = questManager.ActiveQuests.Select(q => q.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var activeQuestIds = questManager.AllStartedQuestIds;
                     for (int i = QuestItems.Count - 1; i >= 0; i--)
                     {
                         if (!activeQuestIds.Contains(QuestItems[i].Id))
@@ -1138,7 +1142,9 @@ namespace eft_dma_radar.UI.Pages
                     }
 
                     var sortedItems = QuestItems.OrderBy(q => q.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                    
                     QuestItems.Clear();
+                    
                     foreach (var item in sortedItems)
                     {
                         QuestItems.Add(item);
@@ -1149,9 +1155,30 @@ namespace eft_dma_radar.UI.Pages
             }
         }
 
+        private void InitializeWebRadar()
+        {
+            chkWebRadarUPnP.IsChecked = Config.WebRadar.UPnP;
+            txtWebRadarClientURL.Text = Config.WebRadar.WebClientURL;
+            txtWebRadarBindIP.Text = Config.WebRadar.IP;
+            txtWebRadarPort.Text = Config.WebRadar.Port;
+            txtWebRadarTickRate.Text = Config.WebRadar.TickRate;
+            txtWebRadarPassword.Text = Config.WebRadar.Password;
+
+            if (WebRadarServer.IsRunning)
+            {
+                btnWebRadarStart.Content = "Stop";
+                ToggleWebRadarControls(false);
+            }
+            else
+            {
+                btnWebRadarStart.Content = "Start";
+                ToggleWebRadarControls(true);
+            }
+        }
+
         private void ToggleWebRadarControls(bool enabled = false)
         {
-            btnWebRadarStart.IsEnabled = enabled;
+            btnWebRadarStart.IsEnabled = true;
             chkWebRadarUPnP.IsEnabled = enabled;
             txtWebRadarClientURL.IsEnabled = enabled;
             btnAutoDetectIP.IsEnabled = enabled;
@@ -1226,6 +1253,8 @@ namespace eft_dma_radar.UI.Pages
             SKPaints.TextMeds.TextSize = 12 * newScale;
             SKPaints.PaintFood.StrokeWidth = 3 * newScale;
             SKPaints.TextFood.TextSize = 12 * newScale;
+            SKPaints.PaintWeapons.StrokeWidth = 3 * newScale;
+            SKPaints.TextWeapons.TextSize = 12 * newScale;
             SKPaints.PaintBackpacks.StrokeWidth = 3 * newScale;
             SKPaints.TextBackpacks.TextSize = 12 * newScale;
             SKPaints.PaintQuestItem.StrokeWidth = 3 * newScale;
@@ -1408,6 +1437,44 @@ namespace eft_dma_radar.UI.Pages
             if (!string.IsNullOrEmpty(_currentEntityType) && !_isLoadingEntitySettings)
                 SaveEntityTypeSettings(_currentEntityType);
         }
+
+        private void UpdateApiStatus()
+        {
+            var hasKey = ApiKeyStore.TryLoadApiKey(out _);
+
+            if (hasKey)
+            {
+                txtApiStatus.Text = $"API key loaded successfully";
+                btnCreateApiFile.Content = "Edit API File…";
+                btnCreateApiFile.ToolTip = "Replace the stored API key";
+                btnClearApiFile.IsEnabled = true;
+                btnOpenApiFolder.IsEnabled = true;
+            }
+            else
+            {
+                txtApiStatus.Text = "No API key saved.";
+                btnCreateApiFile.Content = "Create API File…";
+                btnCreateApiFile.ToolTip = "Create and store an API key securely";
+                btnClearApiFile.IsEnabled = false;
+                btnOpenApiFolder.IsEnabled = false;
+            }
+        }
+
+        private void LoadApiSettings()
+        {
+            _suppressApiEvents = true;
+
+            try
+            {
+                rdbEftApiTech.IsChecked = Config.AlternateProfileService;
+                rdbTarkovDev.IsChecked = !Config.AlternateProfileService;
+                UpdateApiStatus();
+            }
+            finally
+            {
+                _suppressApiEvents = false;
+            }
+        }
         #endregion
 
         #region Events
@@ -1426,9 +1493,11 @@ namespace eft_dma_radar.UI.Pages
                         break;
                     case "PlayerHeightIndicator":
                     case "ImportantIndicator":
+                    case "ShowImportantPlayerLoot":
                     case "HighAlert":
                         SavePlayerTypeSettings();
                         break;
+                    case "ShowImportantCorpseLoot":
                     case "ShowExplosiveRadius":
                     case "ShowLockedDoors":
                     case "ShowUnlockedDoors":
@@ -1459,10 +1528,47 @@ namespace eft_dma_radar.UI.Pages
                     case "UPnP":
                         Config.WebRadar.UPnP = value;
                         break;
+                    case "EnableApi":
+                        Config.AlternateProfileService = value;
+                        break;
                 }
 
                 Config.Save();
                 LoneLogging.WriteLine("Saved Config");
+            }
+        }
+
+        private void GeneralRadioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is RadioButton rdb && rdb.Tag is string tag)
+            {
+                var isChecked = rdb.IsChecked == true;
+                LoneLogging.WriteLine($"[RadioButton] {rdb.Name} changed to {isChecked}");
+
+                if (isChecked)
+                {
+                    switch (tag)
+                    {
+                        case "TarkovDev":
+                            if (_suppressApiEvents || !_uiReady)
+                                return;
+
+                            Config.AlternateProfileService = false;
+
+                            UpdateApiStatus();
+                            break;
+                        case "EftApiTech":
+                            if (_suppressApiEvents || !_uiReady)
+                                return;
+
+                            Config.AlternateProfileService = true;
+
+                            UpdateApiStatus();
+                            break;
+                    }
+                    Config.Save();
+                    LoneLogging.WriteLine("Saved Config");
+                }
             }
         }
 
@@ -1616,43 +1722,70 @@ namespace eft_dma_radar.UI.Pages
 
         private async void btnWebRadarStart_Click(object sender, RoutedEventArgs e)
         {
-            ToggleWebRadarControls(false);
-            btnWebRadarStart.Content = "Starting...";
-
-            try
+            if (WebRadarServer.IsRunning)
             {
-                var tickRate = TimeSpan.FromMilliseconds(1000d / int.Parse(txtWebRadarTickRate.Text.Trim()));
-                var bindIP = txtWebRadarBindIP.Text.Trim();
-                var port = int.Parse(txtWebRadarPort.Text.Trim());
-                var password = txtWebRadarPassword.Text.Trim();
-                var useUPnP = chkWebRadarUPnP.IsChecked == true;
+                ToggleWebRadarControls(false);
+                btnWebRadarStart.Content = "Stopping...";
 
-                if (!string.IsNullOrWhiteSpace(password))
+                try
                 {
-                    WebRadarServer.OverridePassword(password);
+                    await WebRadarServer.StopAsync();
+
+                    btnWebRadarStart.Content = "Start";
+                    lblWebRadarLink.Text = "";
+                    ToggleWebRadarControls(true);
+
+                    NotificationsShared.Info("Web Radar Server stopped successfully.");
                 }
-                else
+                catch (Exception ex)
                 {
-                    txtWebRadarPassword.Text = WebRadarServer.Password;
-                    Config.Save();
+                    NotificationsShared.Error($"ERROR Stopping Web Radar Server: {ex.Message}");
+                    btnWebRadarStart.Content = "Stop";
+                    ToggleWebRadarControls(true);
                 }
-
-                await WebRadarServer.StartAsync(bindIP, port, tickRate, useUPnP);
-
-                btnWebRadarStart.Content = "Running...";
-
-                var externalIP = await WebRadarServer.GetExternalIPAsync();
-                var webClientUrl = !string.IsNullOrWhiteSpace(Config.WebRadar.WebClientURL)
-                    ? Config.WebRadar.WebClientURL
-                    : "http://fd-mambo.org:8080";
-
-                lblWebRadarLink.Text = $"{webClientUrl}/?host={externalIP}&port={port}&password={WebRadarServer.Password}";
             }
-            catch (Exception ex)
+            else
             {
-                NotificationsShared.Error($"ERROR Starting Web Radar Server: {ex.Message}");
-                btnWebRadarStart.Content = "Start";
-                ToggleWebRadarControls(true);
+                ToggleWebRadarControls(false);
+                btnWebRadarStart.Content = "Starting...";
+
+                try
+                {
+                    var tickRate = TimeSpan.FromMilliseconds(1000d / int.Parse(txtWebRadarTickRate.Text.Trim()));
+                    var bindIP = txtWebRadarBindIP.Text.Trim();
+                    var port = int.Parse(txtWebRadarPort.Text.Trim());
+                    var password = txtWebRadarPassword.Text.Trim();
+                    var useUPnP = chkWebRadarUPnP.IsChecked == true;
+
+                    if (!string.IsNullOrWhiteSpace(password))
+                    {
+                        WebRadarServer.OverridePassword(password);
+                    }
+                    else
+                    {
+                        txtWebRadarPassword.Text = WebRadarServer.Password;
+                        Config.Save();
+                    }
+
+                    await WebRadarServer.StartAsync(bindIP, port, tickRate, useUPnP);
+
+                    btnWebRadarStart.Content = "Stop";
+
+                    var externalIP = await WebRadarServer.GetExternalIPAsync();
+                    var webClientUrl = !string.IsNullOrWhiteSpace(Config.WebRadar.WebClientURL)
+                        ? Config.WebRadar.WebClientURL
+                        : "http://radar.fd-mambo.org/";
+
+                    lblWebRadarLink.Text = $"{webClientUrl}/?host={externalIP}&port={port}&password={WebRadarServer.Password}";
+
+                    NotificationsShared.Success("Web Radar Server started successfully!");
+                }
+                catch (Exception ex)
+                {
+                    NotificationsShared.Error($"ERROR Starting Web Radar Server: {ex.Message}");
+                    btnWebRadarStart.Content = "Start";
+                    ToggleWebRadarControls(true);
+                }
             }
         }
 
@@ -1687,6 +1820,83 @@ namespace eft_dma_radar.UI.Pages
         private void btnRefreshMonitors_Click(object sender, RoutedEventArgs e)
         {
             InitMonitors();
+        }
+
+
+        private async void btnCreateApiFile_Click(object sender, RoutedEventArgs e)
+        {
+            btnCreateApiFile.IsEnabled = false;
+
+            try
+            {
+                var exists = File.Exists(ApiKeyStore.StorePath);
+
+                if (exists)
+                {
+                    var res = MessageBox.Show(
+                        "An API key already exists. Do you want to replace it?",
+                        "Replace API Key",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (res != MessageBoxResult.Yes)
+                        return;
+                }
+
+                var key = await ApiKeyWizard.CaptureApiKeyAsync();
+                if (string.IsNullOrWhiteSpace(key))
+                    return;
+
+                ApiKeyStore.SaveApiKey(key);
+
+                UpdateApiStatus();
+
+                MessageBox.Show(
+                    exists ? "API key updated successfully." : "API key saved securely (encrypted).",
+                    "Success",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save API key:\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                btnCreateApiFile.IsEnabled = true;
+            }
+        }
+
+
+        private void btnOpenApiFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Directory.CreateDirectory(ApiKeyStore.StoreDir);
+                Process.Start("explorer.exe", ApiKeyStore.StoreDir);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open folder:\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnClearApiFile_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (File.Exists(ApiKeyStore.StorePath))
+                    File.Delete(ApiKeyStore.StorePath);
+
+                UpdateApiStatus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to delete api.json:\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void widgetsCheckComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1803,6 +2013,7 @@ namespace eft_dma_radar.UI.Pages
             btnBossColor.Click += ColorButton_Clicked;
             btnScavColor.Click += ColorButton_Clicked;
             btnAimbotTargetColor.Click += ColorButton_Clicked;
+            btnVisibleColor.Click += ColorButton_Clicked;
 
             // Loot
             btnRegularLootColor.Click += ColorButton_Clicked;
@@ -1812,6 +2023,7 @@ namespace eft_dma_radar.UI.Pages
             btnMedsFilterLootColor.Click += ColorButton_Clicked;
             btnFoodFilterLootColor.Click += ColorButton_Clicked;
             btnBackpackFilterLootColor.Click += ColorButton_Clicked;
+            btnWeaponsFilterLootColor.Click += ColorButton_Clicked;
             btnQuestLootColor.Click += ColorButton_Clicked;
             btnAirdropsColor.Click += ColorButton_Clicked;
             btnQuestItemsAndZonesColor.Click += ColorButton_Clicked;
@@ -1952,6 +2164,7 @@ namespace eft_dma_radar.UI.Pages
             _brushFields["Boss"] = bossBrush;
             _brushFields["Scav"] = scavBrush;
             _brushFields["AimbotTarget"] = aimbotTargetBrush;
+            _brushFields["Visible"] = visibileBrush;
 
             // Loot colors
             _brushFields["RegularLoot"] = regularLootBrush;
@@ -1960,6 +2173,7 @@ namespace eft_dma_radar.UI.Pages
             _brushFields["ContainerLoot"] = containerLootBrush;
             _brushFields["MedsFilterLoot"] = medsFilterLootBrush;
             _brushFields["FoodFilterLoot"] = foodFilterLootBrush;
+            _brushFields["WeaponsFilterLoot"] = weaponsFilterLootBrush;
             _brushFields["BackpackFilterLoot"] = backpackFilterLootBrush;
             _brushFields["QuestLoot"] = questLootBrush;
             _brushFields["Airdrops"] = airdropsBrush;
@@ -2198,7 +2412,16 @@ namespace eft_dma_radar.UI.Pages
             cboAction.PreviewKeyDown += cboAction_PreviewKeyDown;
             keyInputBox.CapturingStateChanged += KeyInputBox_CapturingStateChanged;
         }
+        private void KeyInputBox_CapturingStateChanged(object sender, bool isCapturing)
+        {
+            _keyInputBoxIsCapturing = isCapturing;
+        }
 
+        private void cboAction_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_keyInputBoxIsCapturing)
+                e.Handled = true;
+        }
         private void RegisterHotkeyHandlers()
         {
             if (!InputManager.IsReady)
@@ -2528,6 +2751,10 @@ namespace eft_dma_radar.UI.Pages
                     LootFilterControl.ShowFood = isActive;
                     mainWindow.LootSettingsControl.UpdateSpecificLootFilterOption("Show Food", isActive);
                     break;
+                case nameof(HotkeyConfig.ShowWeapons):
+                    LootFilterControl.ShowWeapons = isActive;
+                    mainWindow.LootSettingsControl.UpdateSpecificLootFilterOption("Show Weapons", isActive);
+                    break;
                 case nameof(HotkeyConfig.ShowBackpacks):
                     LootFilterControl.ShowBackpacks = isActive;
                     mainWindow.LootSettingsControl.UpdateSpecificLootFilterOption("Show Backpacks", isActive);
@@ -2535,6 +2762,15 @@ namespace eft_dma_radar.UI.Pages
                 case nameof(HotkeyConfig.ShowContainers):
                     Config.Containers.Show = isActive;
                     mainWindow.LootSettingsControl.chkStaticContainers.IsChecked = isActive;
+                    break;
+                case nameof(HotkeyConfig.FuserImportantCorpseLoot):
+                    Config.ESP.EntityTypeESPSettings.GetSettings("Corpse").ShowImportantLoot = isActive;
+                    mainWindow.ESPControl.chkShowImportantCorpseLoot.IsChecked = isActive;
+                    break;
+                case nameof(HotkeyConfig.FuserImportantPlayerLoot):
+                    mainWindow.ESPControl.chkShowImportantPlayerLoot.IsChecked = isActive;
+                    foreach (var setting in Config.ESP.PlayerTypeESPSettings.Settings)
+                        setting.Value.ShowImportantLoot = isActive;
                     break;
                 #endregion
 
@@ -2551,6 +2787,15 @@ namespace eft_dma_radar.UI.Pages
                 case nameof(HotkeyConfig.FuserQuestInfo):
                     Config.ESP.ShowQuestInfoWidget = isActive;
                     mainWindow.ESPControl.UpdateSpecificWidgetOption("Quest Info Widget", isActive);
+                    break;
+                case nameof(HotkeyConfig.ImportantCorpseLoot):
+                    Config.EntityTypeSettings.GetSettings("Corpse").ShowImportantLoot = isActive;
+                    chkShowImportantCorpseLoot.IsChecked = isActive;
+                    break;
+                case nameof(HotkeyConfig.ImportantPlayerLoot):
+                    chkShowImportantPlayerLoot.IsChecked = isActive;
+                    foreach (var setting in Config.PlayerTypeSettings.Settings)
+                        setting.Value.ShowImportantLoot = isActive;
                     break;
                 #endregion
 
@@ -2708,6 +2953,7 @@ namespace eft_dma_radar.UI.Pages
                     if (!MemWrites.Enabled) { NotificationsShared.Error($"ERROR unlocking maps! You have disabled memwrites."); break; }
                     if (isActive) { UnlockMaps(); }
                     break;
+
                 #endregion
 
                 #region General Settings
@@ -2902,18 +3148,442 @@ namespace eft_dma_radar.UI.Pages
                 RefreshHotkeyDisplay();
             }
         }
-
-        private void KeyInputBox_CapturingStateChanged(object sender, bool isCapturing)
-        {
-            _keyInputBoxIsCapturing = isCapturing;
-        }
-
-        private void cboAction_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (_keyInputBoxIsCapturing)
-                e.Handled = true;
-        }
         #endregion
+        #endregion
+
+        #region ConfigTab
+        private bool _isRefreshingConfigList = false;
+        private bool _ignoreConfigSelectionChanged = false;
+        private async Task InitializeConfigTab()
+        {
+            RefreshConfigList();
+            txtCurrentConfig.Text = Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName);
+
+            btnSaveConfig.Click += BtnCreateConfig_Click;
+            btnDeleteConfig.Click += BtnDeleteConfig_Click;
+            btnResetConfig.Click += BtnResetConfig_Click;
+            btnRefreshConfigs.Click += BtnRefreshConfigs_Click;
+            btnImportClipboard.Click += BtnImportClipboard_Click;
+            btnExportClipboard.Click += BtnExportClipboard_Click;
+
+            cboConfigs.SelectionChanged += CboConfigs_SelectionChanged;
+        }
+
+        private async void CboConfigs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_ignoreConfigSelectionChanged)
+                return;
+
+            if (cboConfigs.SelectedIndex >= 0)
+                BtnLoadConfig_Click(null, null);
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                mainWindow.UpdateWindowTitle(Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName));
+            });
+        }
+        private void RefreshConfigList()
+        {
+            _isRefreshingConfigList = true;
+        
+            try
+            {
+                _ignoreConfigSelectionChanged = true;
+                cboConfigs.Items.Clear();
+        
+                var configs = ConfigManager.GetAvailableConfigs()
+                    .OrderBy(c => c.ConfigName)
+                    .ToList();
+        
+                var currentConfigNameWithoutExt = Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName);
+                var selectedIndex = -1;
+        
+                foreach (var config in configs)
+                {
+                    var displayName = Path.GetFileNameWithoutExtension(config.ConfigName);
+                    cboConfigs.Items.Add(displayName);
+        
+                    if (displayName.Equals(currentConfigNameWithoutExt, StringComparison.OrdinalIgnoreCase))
+                        selectedIndex = cboConfigs.Items.Count - 1;
+                }
+        
+                cboConfigs.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        
+                txtCurrentConfig.Text = currentConfigNameWithoutExt;
+            }
+            finally
+            {
+                _ignoreConfigSelectionChanged = false;
+                _isRefreshingConfigList = false;
+            }
+        }
+
+
+        private async void BtnLoadConfig_Click(object sender, RoutedEventArgs e)
+        {
+            if (cboConfigs.SelectedIndex < 0)
+                return;
+
+            var selectedConfigName = cboConfigs.SelectedItem.ToString();
+            var configToLoad = selectedConfigName + ".json";
+
+            var confirm = MessageBox.Show(
+                $"WARNING: Loading configuration '{selectedConfigName}' will overwrite current settings.\nContinue?",
+                "Confirm Load", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+            
+            try
+            {
+                ESPForm.CloseESP();
+
+                ConfigManager.CurrentConfig.Save();
+                
+                var loaded = await Task.Run(() => ConfigManager.LoadConfig(configToLoad));
+
+                if (loaded)
+                {
+                    await ApplyNewConfig();
+
+                    txtCurrentConfig.Text = Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName);
+                    mainWindow.UpdateWindowTitle(txtCurrentConfig.Text);
+                    RefreshConfigList();
+
+                    NotificationsShared.Success($"Loaded '{selectedConfigName}' successfully!");
+                }
+                else
+                {
+                    NotificationsShared.Error($"Failed to load '{selectedConfigName}'!");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"Error loading config: {ex}");
+                NotificationsShared.Error($"Error loading config: {ex.Message}");
+            }
+        }
+
+        public static async Task ApplyConfig()
+        {
+            GeneralSettingsControl GenSettings = new GeneralSettingsControl();
+            await GenSettings.ApplyNewConfig();
+        }
+
+        private async Task ApplyNewConfig()
+        {
+            try
+            {
+
+                var mainWindow = MainWindow.Window;
+
+                if (mainWindow == null)
+                    return;
+
+                Program.UpdateConfig(ConfigManager.CurrentConfig);
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    LoadGeneralSettings();
+                    LoadColorSettings();
+                    LoadHotkeySettings();
+                    UpdateUIScale();
+                });
+
+                await Dispatcher.InvokeAsync(async () =>
+                {
+                    if (mainWindow.MemoryWritingControl != null)
+                    {
+                        MemWrites.Enabled = Config.MemWrites.MemWritesEnabled;
+                        mainWindow.MemoryWritingControl.LoadSettings();
+                        await Task.Delay(50);
+                        mainWindow.MemoryWritingControl.FeatureInstanceCheck();
+                    }
+
+                    if (mainWindow.LootSettingsControl != null)
+                    {
+                        mainWindow.LootSettingsControl.LoadSettings();
+                        await Task.Delay(50);
+                        await Task.Run(() => RefreshContainerData());
+                    }
+
+                    if (mainWindow.ESPControl != null)
+                    {
+                        mainWindow.ESPControl.LoadSettings();
+                        await Task.Delay(50);
+                        mainWindow.ESPControl.LoadImportedChamsSettings();
+                    }
+                });
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    mainWindow.RestorePanelPositions();
+                    mainWindow.RestoreToolbarPosition();
+
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                    timer.Tick += (s, args) =>
+                    {
+                        timer.Stop();
+                        mainWindow.EnsureAllPanelsInBounds();
+                        if (mainWindow.customToolbar != null)
+                            mainWindow.EnsurePanelInBounds(mainWindow.customToolbar, mainWindow.mainContentGrid);
+                    };
+                    timer.Start();
+                });
+
+                await Task.Run(() => RefreshQuestData());
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    UpdateFeatureInstances();
+                });
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    mainWindow.UpdateWindowTitle(Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName));
+                });
+                //ConfigManager.CurrentConfig.Save();
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[Config] Error applying new config: {ex}");
+                MessageBox.Show($"Error applying configuration: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnCreateConfig_Click(object sender, RoutedEventArgs e)
+        {
+            var newConfigName = txtNewConfigName.Text.Trim();
+            if (string.IsNullOrWhiteSpace(newConfigName))
+            {
+                MessageBox.Show("Please enter a name for the new config.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            newConfigName = Path.GetFileNameWithoutExtension(newConfigName);
+
+            try
+            {
+                ConfigManager.CurrentConfig.Save();
+
+                Config.ConfigName = newConfigName;
+                Config.Filename = newConfigName + ".json";
+                LoneLogging.WriteLine($"[Config] Creating new config: {Config.ConfigName}");
+
+                var saved = ConfigManager.SaveAsNewConfig(Config.Filename);
+
+                if (saved)
+                {
+                    Config.Filename = Path.GetFileNameWithoutExtension(ConfigManager.CurrentConfigName);
+                    txtCurrentConfig.Text = newConfigName;
+                    RefreshConfigList();
+
+                    _ignoreConfigSelectionChanged = true;
+                    try
+                    {
+                        for (int i = 0; i < cboConfigs.Items.Count; i++)
+                        {
+                            if (cboConfigs.Items[i].ToString().Equals(newConfigName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                cboConfigs.SelectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _ignoreConfigSelectionChanged = false;
+                    }
+
+                    NotificationsShared.Success($"Config '{newConfigName}' created and saved!");
+                }
+                else
+                {
+                    NotificationsShared.Error($"Failed to save '{newConfigName}'!");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[Config] Error creating new config: {ex}");
+                NotificationsShared.Error($"Error creating new config: {ex.Message}");
+            }
+        }
+
+
+        private void BtnDeleteConfig_Click(object sender, RoutedEventArgs e)
+        {
+            if (cboConfigs.SelectedIndex <= 0)
+                return;
+
+            var configToDelete = cboConfigs.SelectedItem.ToString();
+
+            if (cboConfigs.SelectedIndex > 0 && !configToDelete.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                configToDelete += ".json";
+
+            var result = MessageBox.Show($"Are you sure you want to delete config '{configToDelete}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                if (ConfigManager.DeleteConfig(configToDelete))
+                {
+                    MessageBox.Show($"Config '{Path.GetFileNameWithoutExtension(configToDelete)}' deleted successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    RefreshConfigList();
+                }
+                else
+                {
+                    MessageBox.Show($"Failed to delete config '{Path.GetFileNameWithoutExtension(configToDelete)}'.\n" + "Check logs for more details.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void BtnResetConfig_Click(object sender, RoutedEventArgs e)
+        {
+            ConfigManager.ResetToDefault();
+            MessageBox.Show("Default config restored successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            RefreshConfigList();
+        }
+
+        private void BtnRefreshConfigs_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshConfigList();
+        }
+
+        private void BtnExportClipboard_Click(object sender, RoutedEventArgs e)
+        {
+            ExportConfigToClipboard();
+        }   
+
+        private void ExportConfigToClipboard()
+        {
+            try
+            {
+                if (Config == null)
+                {
+                    NotificationsShared.Warning("[Config] No configuration available to export.");
+                    return;
+                }
+
+                var configForExport = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(Config));
+                configForExport.Cache = null;
+                configForExport.WebRadar = null;
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                };
+
+                var jsonData = JsonSerializer.Serialize(configForExport, options);
+                Clipboard.SetText(jsonData);
+
+                NotificationsShared.Success("[Config] Configuration exported to clipboard successfully! (Cache and WebRadar settings excluded)");
+                LoneLogging.WriteLine("[Config] Configuration exported to clipboard (excluding Cache and WebRadar)");
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[Config] Export error: {ex}");
+                NotificationsShared.Error($"[Config] Export error: {ex.Message}");
+            }
+        }
+
+        private async void BtnImportClipboard_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (!Clipboard.ContainsText())
+                {
+                    NotificationsShared.Warning("[Config] Clipboard does not contain text data.");
+                    return;
+                }
+
+                var clipboardText = Clipboard.GetText();
+
+                var confirm = MessageBox.Show(
+                    "WARNING: Importing a configuration will replace current settings including:\n\n" +
+                    "• General settings & UI preferences\n" +
+                    "• Player/Entity display settings\n" +
+                    "• Color configurations\n" +
+                    "• Hotkey assignments\n" +
+                    "• ESP configurations\n" +
+                    "• Panel and toolbar positions\n" +
+                    "• Memory writing settings\n" +
+                    "• Loot settings\n" +
+                    "• Quest helper settings\n" +
+                    "• Container settings\n\n" +
+                    "NOTE: Cache data will not be preserved.\n\n" +
+                    "This action cannot be undone. Continue?",
+                    "Import Configuration Warning",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (confirm != MessageBoxResult.Yes)
+                    return;
+
+                btnImportClipboard.IsEnabled = false;
+
+                Config importedConfig = null;
+
+                await Task.Run(() =>
+                {
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip,
+                        AllowTrailingCommas = true
+                    };
+
+                    importedConfig = JsonSerializer.Deserialize<Config>(clipboardText, options);
+                });
+
+                if (importedConfig == null)
+                {
+                    NotificationsShared.Error("[Config] Clipboard data is not a valid configuration.");
+                    return;
+                }
+
+                var baseName = importedConfig.ConfigName?.Trim();
+                if (string.IsNullOrWhiteSpace(baseName))
+                    baseName = "ImportedConfig";
+                else
+                    baseName = Path.GetFileNameWithoutExtension(baseName);
+
+                var finalName = baseName;
+                var counter = 1;
+
+                while (File.Exists(Path.Combine(ConfigManager.CustomConfigDirectory, finalName + ".json")))
+                {
+                    finalName = $"{baseName}-{counter}";
+                    counter++;
+                }
+
+                importedConfig.ConfigName = finalName;
+
+                var saved = await Task.Run(() => ConfigManager.SaveAsNewConfig(finalName + ".json"));
+
+                if (saved)
+                {
+                    Config.ConfigName = finalName + ".json";
+                    txtCurrentConfig.Text = finalName;
+
+                    NotificationsShared.Success($"Configuration imported and saved as '{finalName}'!");
+                    RefreshConfigList();
+                }
+                else
+                {
+                    NotificationsShared.Error("[Config] Failed to save imported configuration.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[Config] Import error: {ex}");
+                NotificationsShared.Error($"[Config] Import error: {ex.Message}");
+            }
+            finally
+            {
+                btnImportClipboard.IsEnabled = true;
+            }
+        }          
         #endregion
     }
 }

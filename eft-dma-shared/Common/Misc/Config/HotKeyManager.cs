@@ -51,8 +51,11 @@ namespace eft_dma_shared.Common.Misc.Data.EFT
         [JsonPropertyName("showWishlistLoot")] public HotkeyEntry ShowWishlistLoot { get; set; } = new();
         [JsonPropertyName("showMeds")] public HotkeyEntry ShowMeds { get; set; } = new();
         [JsonPropertyName("showFood")] public HotkeyEntry ShowFood { get; set; } = new();
+        [JsonPropertyName("showWeapons")] public HotkeyEntry ShowWeapons{ get; set; } = new();
         [JsonPropertyName("showBackpacks")] public HotkeyEntry ShowBackpacks { get; set; } = new();
         [JsonPropertyName("showContainers")] public HotkeyEntry ShowContainers { get; set; } = new();
+        [JsonPropertyName("importantCorpseLoot")] public HotkeyEntry ImportantCorpseLoot { get; set; } = new();
+        [JsonPropertyName("importantPlayerLoot")] public HotkeyEntry ImportantPlayerLoot { get; set; } = new();
         #endregion
 
         #region Fuser ESP
@@ -60,6 +63,8 @@ namespace eft_dma_shared.Common.Misc.Data.EFT
         [JsonPropertyName("miniRadarZoomIn")] public HotkeyEntry MiniRadarZoomIn { get; set; } = new();
         [JsonPropertyName("miniRadarZoomOut")] public HotkeyEntry MiniRadarZoomOut { get; set; } = new();
         [JsonPropertyName("fuserQuestInfoWidget")] public HotkeyEntry FuserQuestInfo { get; set; } = new();
+        [JsonPropertyName("fuserImportantCorpseLoot")] public HotkeyEntry FuserImportantCorpseLoot { get; set; } = new();
+        [JsonPropertyName("fuserImportantPlayerLoot")] public HotkeyEntry FuserImportantPlayerLoot { get; set; } = new();
         #endregion
 
         #region Memory Writes

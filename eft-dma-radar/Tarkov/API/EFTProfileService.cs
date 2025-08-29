@@ -71,7 +71,12 @@ namespace eft_dma_radar.Tarkov.API
         /// Profile data returned by the Tarkov API.
         /// </summary>
         public static IReadOnlyDictionary<string, ProfileData> Profiles => _profiles;
+        private static readonly ConcurrentDictionary<string, ProfileResponseContainer> _eftApiMeta
+            = new(StringComparer.OrdinalIgnoreCase);
 
+        // Optional helper
+        public static bool TryGetEftApiMeta(string accountId, out ProfileResponseContainer meta)
+            => _eftApiMeta.TryGetValue(accountId, out meta);
         /// <summary>
         /// Attempt to register a Profile for lookup.
         /// </summary>
@@ -126,27 +131,37 @@ namespace eft_dma_radar.Tarkov.API
             if (Cache.Profiles.TryGetValue(accountId, out var cachedProfile))
             {
                 _profiles[accountId] = cachedProfile;
+                return;
             }
-            else
+
+            try
             {
-                try
+                ProfileData profile = null;
+
+                if (Program.Config.AlternateProfileService)
                 {
-                    ProfileData result;
-                    result = await LookupFromTarkovDevAsync(accountId);
-                    /// eft-api.tech now requires a bearer token, in the future should implement a backend server to do the API requests for this.
-                    /// Disabling it for now.
-                    //result ??= await LookupFromEftApiTechAsync(accountId);
-                    if (result is not null ||
-                        (result is null && /*_eftApiNotFound.Contains(accountId) &&*/ _tdevNotFound.Contains(accountId)))
+                    var container = await LookupFromEftApiTechAsync(accountId); // returns ProfileResponseContainer
+                    if (container != null)
                     {
-                        Cache.Profiles[accountId] = result;
+                        profile = container.Data;                 // what you already use everywhere
+                        _eftApiMeta[accountId] = container;       // lets you read: aid, isStreamer, lastUpdated, etc.
                     }
-                    _profiles[accountId] = result;
                 }
-                finally
+                else
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(1.5d));
+                    profile = await LookupFromTarkovDevAsync(accountId); // returns ProfileData
                 }
+
+                if (profile != null || _tdevNotFound.Contains(accountId))
+                {
+                    Cache.Profiles[accountId] = profile;
+                }
+
+                _profiles[accountId] = profile;
+            }
+            finally
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
             }
         }
 
@@ -199,35 +214,77 @@ namespace eft_dma_radar.Tarkov.API
         /// <param name="accountId"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        private static async Task<ProfileData> LookupFromEftApiTechAsync(string accountId)
+        private static async Task<ProfileResponseContainer> LookupFromEftApiTechAsync(string accountId)
         {
-            const string baseUrl = "https://eft-api.tech/api/profile/";
             try
             {
                 if (_eftApiNotFound.Contains(accountId))
+                    return null;
+
+                string loadedKey;
+
+                if (ApiKeyStore.TryLoadApiKey(out loadedKey))
+                    LoneLogging.WriteLine($"Got API Key{loadedKey}");
+
+                if (string.IsNullOrWhiteSpace(loadedKey))
                 {
+                    LoneLogging.WriteLine("[EFTProfileService] eft-api.tech requires an API key but none was found.");
                     return null;
                 }
-                string url = baseUrl + accountId + "?includeOnlyPmcStats=true";
-                using var response = await _client.GetAsync(url);
-                if (response.StatusCode is HttpStatusCode.NotFound)
+                if (string.IsNullOrWhiteSpace(loadedKey))
+                {
+                    LoneLogging.WriteLine("[EFTProfileService] eft-api.tech requires an API key. API Key is empty/null.");
+                    return null;
+                }
+
+                var ct = _cts?.Token ?? CancellationToken.None;
+                var uri = $"https://eft-api.tech/api/profile/{accountId}?includeOnlyPmcStats=true";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", loadedKey);
+
+                // Use the service's shared HttpClient to avoid NRE and reduce socket churn
+                using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+                if (response.StatusCode == HttpStatusCode.NotFound)
                 {
                     LoneLogging.WriteLine($"[EFTProfileService] Profile '{accountId}' not found by eft-api.tech.");
                     _eftApiNotFound.Add(accountId);
                     return null;
                 }
-                if (response.StatusCode is HttpStatusCode.TooManyRequests) // Force Rate-Limit
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     LoneLogging.WriteLine("[EFTProfileService] Rate-Limited by eft-api.tech - Pausing for 1 minute.");
-                    await Task.Delay(TimeSpan.FromMinutes(1));
+                    await Task.Delay(TimeSpan.FromMinutes(1), ct);
                     return null;
                 }
+
                 response.EnsureSuccessStatusCode();
-                using var stream = await response.Content.ReadAsStreamAsync();
-                var result = await JsonSerializer.DeserializeAsync<ProfileResponseContainer>(stream) ??
-                    throw new ArgumentNullException("result");
+
+                await using var stream = await response.Content.ReadAsStreamAsync(ct);
+                var container = await JsonSerializer.DeserializeAsync<ProfileResponseContainer>(stream, cancellationToken: ct);
+
+                if (container == null)
+                {
+                    LoneLogging.WriteLine("[EFTProfileService] Deserialization returned null container from eft-api.tech.");
+                    return null;
+                }
+
+                // Data may legitimately be null if API has no stats for that account
+                if (container.Data == null)
+                {
+                    LoneLogging.WriteLine($"[EFTProfileService] Profile '{accountId}' returned no Data from eft-api.tech (null).");
+                    return null;
+                }
+
                 LoneLogging.WriteLine($"[EFTProfileService] Got Profile '{accountId}' via eft-api.tech!");
-                return result.Data;
+                return container;
+            }
+            catch (OperationCanceledException)
+            {
+                // normal during game stop / CTS cancel
+                return null;
             }
             catch (Exception ex)
             {
@@ -240,8 +297,35 @@ namespace eft_dma_radar.Tarkov.API
 
         public sealed class ProfileResponseContainer
         {
+            [JsonPropertyName("aid")]
+            public long Aid { get; set; }
+
             [JsonPropertyName("data")]
             public ProfileData Data { get; set; }
+
+            [JsonPropertyName("isStreamer")]
+            public bool IsStreamer { get; set; }
+
+            [JsonPropertyName("lastUpdated")]
+            public LastUpdatedInfo LastUpdated { get; set; }
+
+            [JsonPropertyName("saved")]
+            public bool Saved { get; set; }
+
+            [JsonPropertyName("success")]
+            public bool Success { get; set; }
+
+            [JsonPropertyName("twitchUsername")]
+            public string TwitchUsername { get; set; }
+        }
+
+        public sealed class LastUpdatedInfo
+        {
+            [JsonPropertyName("epoch")]
+            public long Epoch { get; set; }
+
+            [JsonPropertyName("readable")]
+            public string Readable { get; set; }
         }
 
         public sealed class ProfileData
@@ -272,6 +356,7 @@ namespace eft_dma_radar.Tarkov.API
 
             [JsonPropertyName("registrationDate")]
             public int RegistrationDate { get; set; }
+
         }
 
         public sealed class StatsContainer

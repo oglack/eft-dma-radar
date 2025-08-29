@@ -2,11 +2,14 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using SkiaSharp;
 using eft_dma_shared.Common.Misc;
 using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
 
 namespace eft_dma_radar.Converters
 {
@@ -36,7 +39,7 @@ namespace eft_dma_radar.Converters
             return "#FFFFFFFF";
         }
     }
-    
+
     public class ItemIconConverter : IValueConverter
     {
         private static readonly string IconPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "eft-dma-radar", "Assets", "Icons", "Items");
@@ -81,10 +84,10 @@ namespace eft_dma_radar.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not string itemId) return null;
-        
+
             string path = Path.Combine(IconPath, $"{itemId}.png");
             if (!File.Exists(path)) return null;
-        
+
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
@@ -93,7 +96,7 @@ namespace eft_dma_radar.Converters
             //LoneLogging.WriteLine($"[IconCache] Loaded icon for {itemId} from {path}");
             return image;
         }
-        
+
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
     }
 
@@ -105,6 +108,112 @@ namespace eft_dma_radar.Converters
                 return isEnabled ? 1.0 : 0.1;
 
             return 0.4;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class Boolean2VisibilityConverter : IValueConverter
+    {
+        /// <summary>
+        /// Gets or sets a value indicating whether to reverse the conversion logic.
+        /// When true, true becomes Collapsed and false becomes Visible.
+        /// </summary>
+        public bool IsReversed { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to use Hidden instead of Collapsed.
+        /// </summary>
+        public bool UseHidden { get; set; }
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            bool boolValue = false;
+
+            if (value is bool b)
+                boolValue = b;
+            else if (value is bool?)
+            {
+                bool? nb = (bool?)value;
+                boolValue = nb.HasValue && nb.Value;
+            }
+
+            if (IsReversed)
+                boolValue = !boolValue;
+
+            if (boolValue)
+                return Visibility.Visible;
+            else
+                return UseHidden ? Visibility.Hidden : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is Visibility visibility)
+            {
+                bool result = visibility == Visibility.Visible;
+                return IsReversed ? !result : result;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Static instance for true -> Visible, false -> Collapsed
+        /// </summary>
+        public static readonly Boolean2VisibilityConverter TrueToVisible = new Boolean2VisibilityConverter { IsReversed = false };
+
+        /// <summary>
+        /// Static instance for true -> Collapsed, false -> Visible
+        /// </summary>
+        public static readonly Boolean2VisibilityConverter TrueToCollapsed = new Boolean2VisibilityConverter { IsReversed = true };
+
+        /// <summary>
+        /// Static instance for true -> Visible, false -> Hidden
+        /// </summary>
+        public static readonly Boolean2VisibilityConverter TrueToVisibleUseHidden = new Boolean2VisibilityConverter { IsReversed = false, UseHidden = true };
+
+        /// <summary>
+        /// Static instance for true -> Hidden, false -> Visible
+        /// </summary>
+        public static readonly Boolean2VisibilityConverter TrueToHiddenUseHidden = new Boolean2VisibilityConverter { IsReversed = true, UseHidden = true };
+    }
+
+    public class BoolToStatusBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool isEnabled)
+            {
+                return new SolidColorBrush(isEnabled ? Colors.LimeGreen : Colors.Red);
+            }
+
+            return new SolidColorBrush(Colors.Gray);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class BoolToStringConverter : IValueConverter
+    {
+        public static BoolToStringConverter Instance { get; } = new BoolToStringConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool boolValue && parameter is string paramString)
+            {
+                var parts = paramString.Split('|');
+                if (parts.Length >= 2)
+                    return boolValue ? parts[0] : parts[1];
+            }
+
+            return value?.ToString() ?? "";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

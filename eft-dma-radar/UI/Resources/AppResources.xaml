@@ -10,6 +10,9 @@
     <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>
     <converters:ColorHexToBrushConverter x:Key="ColorHexToBrushConverter"/>
     <converters:ItemIconConverter x:Key="ItemIconConverter"/>
+    <converters:Boolean2VisibilityConverter x:Key="Boolean2VisibilityConverter"/>
+    <converters:BoolToStatusBrushConverter x:Key="BoolToStatusBrushConverter"/>
+    <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
 
     <BitmapImage x:Key="AppIconImage" UriSource="pack://application:,,,/lone-icon.ico"/>
 
@@ -542,5 +545,223 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Margin" Value="0,10,0,20"/>
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+    </Style>
+
+    <!-- Modern ListView Item Container Base Style -->
+    <Style x:Key="ModernListViewItemStyle" TargetType="ListViewItem">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="2,1"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="ItemBorder"
+                        Background="{DynamicResource RegionBrush}"
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="8"
+                        Padding="6,2">
+                        <Grid>
+                            <!-- Selection background overlay -->
+                            <Border x:Name="SelectionOverlay"
+                                Background="Transparent"
+                                CornerRadius="8"
+                                Margin="-6,-2"
+                                Opacity="0"/>
+                            <ContentPresenter/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource SecondaryRegionBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="SelectionOverlay" Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                            <Setter TargetName="SelectionOverlay" Property="Opacity" Value="0.3"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="SelectionOverlay" Property="Opacity" Value="0.5"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Filter Groups ListView Item Style (smaller padding) -->
+    <Style x:Key="FilterGroupsListViewItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource ModernListViewItemStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="ItemBorder"
+                        Background="{DynamicResource RegionBrush}"
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="6"
+                        Padding="10,8">
+                        <Grid>
+                            <!-- Selection background overlay -->
+                            <Border x:Name="SelectionOverlay"
+                                Background="Transparent"
+                                CornerRadius="6"
+                                Margin="-10,-6"
+                                Opacity="0"/>
+                            <ContentPresenter/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource SecondaryRegionBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="SelectionOverlay" Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                            <Setter TargetName="SelectionOverlay" Property="Opacity" Value="0.3"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="SelectionOverlay" Property="Opacity" Value="0.4"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Modern ListView Base Style -->
+    <Style x:Key="ModernListViewStyle" TargetType="ListView">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+    </Style>
+
+    <!-- Icon Container Style (reusable for images/icons) -->
+    <Style x:Key="IconContainerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource ThirdRegionBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="Black"
+                              Opacity="0.15"
+                              BlurRadius="3"
+                              ShadowDepth="1"
+                              Direction="270"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Status Indicator Style (reusable for enabled/disabled indicators) -->
+    <Style x:Key="StatusIndicatorStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource ThirdRegionBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="Black"
+                              Opacity="0.1"
+                              BlurRadius="2"
+                              ShadowDepth="1"
+                              Direction="270"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Color Picker Button Template -->
+    <Style x:Key="ColorPickerButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="ColorBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="4">
+                        <Border.Effect>
+                            <DropShadowEffect Color="Black"
+                                          Opacity="0.2"
+                                          BlurRadius="2"
+                                          ShadowDepth="1"
+                                          Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ColorBorder" Property="BorderThickness" Value="2"/>
+                            <Setter TargetName="ColorBorder" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ColorBorder" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.95" ScaleY="0.95"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--Resizeable GridSplitter-->
+    <Style x:Key="ProfessionalGridSplitterStyle" TargetType="GridSplitter">
+        <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+        <Setter Property="Width" Value="5"/>
+        <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+        <Setter Property="ResizeDirection" Value="Columns"/>
+        <Setter Property="Margin" Value="4,0"/>
+        <Setter Property="Cursor" Value="SizeWE"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GridSplitter">
+                    <Border x:Name="SplitterBorder"
+                        Background="Transparent"
+                        Width="10"
+                        Cursor="{TemplateBinding Cursor}">
+                        <!-- Visual splitter line -->
+                        <Border x:Name="SplitterLine"
+                            Width="2"
+                            Background="{TemplateBinding Background}"
+                            HorizontalAlignment="Center"
+                            CornerRadius="1"
+                            Opacity="1.0"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="SplitterLine" Property="Width" Value="3"/>
+                            <Setter TargetName="SplitterBorder" Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="{DynamicResource PrimaryColor}" Opacity="0.15"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="SplitterLine" Property="Width" Value="4"/>
+                            <Setter TargetName="SplitterBorder" Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="{DynamicResource PrimaryColor}" Opacity="0.25"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>

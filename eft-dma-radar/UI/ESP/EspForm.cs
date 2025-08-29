@@ -1,6 +1,7 @@
 ﻿using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.Features;
 using eft_dma_radar.Tarkov.Features.MemoryWrites;
+using eft_dma_radar.Tarkov.Features.MemoryWrites.Patches;
 using eft_dma_radar.Tarkov.GameWorld;
 using eft_dma_radar.Tarkov.GameWorld.Exits;
 using eft_dma_radar.Tarkov.GameWorld.Explosives;
@@ -16,6 +17,7 @@ using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Unity;
 using RectFSer = eft_dma_radar.UI.Misc.RectFSer;
 using Switch = eft_dma_radar.Tarkov.GameWorld.Exits.Switch;
+using System.ComponentModel;
 
 namespace eft_dma_radar.UI.ESP
 {
@@ -47,7 +49,8 @@ namespace eft_dma_radar.UI.ESP
         private Size _lastControlSize = Size.Empty;
 
         private float ScaledHitTestPadding => 3f * Config.ESP.FontScale;
-
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public static ESPForm Instance { get; private set; }
         private readonly Dictionary<UIElement, CachedBounds> _boundsCache = new();
         private readonly Dictionary<UIElement, UIElementInfo> _uiElements = new();
         private int _lastFrameBounds = 0;
@@ -64,6 +67,7 @@ namespace eft_dma_radar.UI.ESP
         private SKGLControl skglControl_ESP;
 
         private ESPQuestInfoWidget _espQuestInfo;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public ESPQuestInfoWidget ESPQuestInfo { get => _espQuestInfo; private set => _espQuestInfo = value; }
 
         private readonly ConcurrentBag<SKPath> _pathPool = new ConcurrentBag<SKPath>();
@@ -184,7 +188,15 @@ namespace eft_dma_radar.UI.ESP
             while (!this.IsHandleCreated)
                 await Task.Delay(25);
 
-            Window ??= this;
+            // Ensure only one instance exists
+            if (Window != null && !Window.IsDisposed)
+            {
+                this.Close();
+                return;
+            }
+
+            Window = this;
+            Instance = this;
             CameraManagerBase.EspRunning = true;
 
             _renderTimer.Start();
@@ -192,6 +204,26 @@ namespace eft_dma_radar.UI.ESP
             skglControl_ESP.PaintSurface += ESPForm_PaintSurface;
             _renderTimer.Elapsed += RenderTimer_Elapsed;
         }
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            base.OnFormClosed(e);
+            Instance = null;
+            Window = null;
+            CameraManagerBase.EspRunning = false;
+
+            // Clean up resources
+            _renderTimer?.Dispose();
+
+            foreach (var path in _pathPool)
+                path.Dispose();
+            _pathPool.Clear();
+
+            // Remove event handlers
+            skglControl_ESP.PaintSurface -= ESPForm_PaintSurface;
+            if (_renderTimer != null)
+                _renderTimer.Elapsed -= RenderTimer_Elapsed;
+        }
+
 
         private void ESPForm_MouseDown(object sender, MouseEventArgs e)
         {
@@ -446,7 +478,39 @@ namespace eft_dma_radar.UI.ESP
                 _fpsCounter++;
             }
         }
-
+        public static void CloseESP()
+        {
+            try
+            {
+                // Check if Window exists and isn't disposed
+                if (Window != null && !Window.IsDisposed)
+                {
+                    if (Window.InvokeRequired)
+                    {
+                        Window.Invoke(new Action(() =>
+                        {
+                            Window.Close();
+                            Window.Dispose();
+                            Window = null;
+                        }));
+                    }
+                    else
+                    {
+                        Window.Close();
+                        Window.Dispose();
+                        Window = null;
+                    }
+                }
+                CameraManagerBase.EspRunning = false;
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[ESPForm] Error closing ESP window: {ex}");
+                // Ensure we clean up even if there was an error
+                Window = null;
+                CameraManagerBase.EspRunning = false;
+            }
+        }
         /// <summary>
         /// Handle double click even on ESP Window (toggles fullscreen).
         /// </summary>

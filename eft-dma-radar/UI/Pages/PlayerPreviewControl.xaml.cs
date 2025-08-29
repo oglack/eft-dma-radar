@@ -100,14 +100,14 @@ namespace eft_dma_radar.UI.Pages
 
         private void Redraw(object sender, EventArgs e)
         {
-            if (cmbPlayerType.SelectedItem is ChamsEntityType type && Chams.Config.EntityChams.TryGetValue(type, out var settings))
-            {
-                var visibleColor = SKColor.Parse(settings.VisibleColor);
-                var invisibleColor = SKColor.Parse(settings.InvisibleColor);
-                Load3DModel("SoldierVis.obj",
-                    Color.FromArgb(visibleColor.Alpha, visibleColor.Red, visibleColor.Green, visibleColor.Blue),
-                    Color.FromArgb(invisibleColor.Alpha, invisibleColor.Red, invisibleColor.Green, invisibleColor.Blue));
-            }
+            //if (cmbPlayerType.SelectedItem is ChamsEntityType type && Chams.Config.EntityChams.TryGetValue(type, out var settings))
+            //{
+            //    var visibleColor = SKColor.Parse(settings.VisibleColor);
+            //    var invisibleColor = SKColor.Parse(settings.InvisibleColor);
+            //    Load3DModel("SoldierVis.obj",
+            //        Color.FromArgb(visibleColor.Alpha, visibleColor.Red, visibleColor.Green, visibleColor.Blue),
+            //        Color.FromArgb(invisibleColor.Alpha, invisibleColor.Red, invisibleColor.Green, invisibleColor.Blue));
+            //}
         }
 
         private void GetChamsColors(out SKColor visible, out SKColor invisible)
@@ -131,66 +131,66 @@ namespace eft_dma_radar.UI.Pages
 
         private void Load3DModel(string path, Color visibleColor, Color invisibleColor)
         {
-            viewport3D.Children.Clear();
-
-            var reader = new ObjReader();
-            var visibleModel = new ObjReader().Read("SoldierVis.obj");
-            var invisibleModel = new ObjReader().Read("SoldierInVis.obj");
-
-            if (visibleModel == null || invisibleModel == null)
-            {
-                HandyControl.Controls.MessageBox.Show("One or both OBJ models could not be loaded.");
-                return;
-            }
-
-            var displayMode = (cmbDisplayMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Both";
-            var chamsMode = cmbChamsMode.SelectedItem is ChamsMode m ? m : ChamsMode.Basic;
-
-            _rotateTransform = new RotateTransform3D(_rotation);
-            var transformGroup = new Transform3DGroup
-            {
-                Children = new Transform3DCollection
-                {
-                    new ScaleTransform3D(0.33, 0.33, 0.33),
-                    _rotateTransform
-                }
-            };
-            visibleModel.Transform = transformGroup;
-            invisibleModel.Transform = transformGroup;
-
-            // Determine color application
-            if(cmbChamsMode.SelectedItem is ChamsMode.Visible)
-            {
-                ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
-                ApplyMaterialToModel(invisibleModel, visibleColor, chamsMode, isInvisible: true);
-            }
-            else if (displayMode == "Both")
-            {
-                ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
-                ApplyMaterialToModel(invisibleModel, invisibleColor, chamsMode, isInvisible: true);
-            }
-            else if (displayMode == "Visible")
-            {
-                ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
-                ApplyMaterialToModel(invisibleModel, visibleColor, chamsMode, isInvisible: false);
-            }
-            else if (displayMode == "Invisible")
-            {
-                ApplyMaterialToModel(visibleModel, invisibleColor, chamsMode, isInvisible: true);
-                ApplyMaterialToModel(invisibleModel, invisibleColor, chamsMode, isInvisible: true);
-            }
-
-            // Lighting
-            viewport3D.Children.Add(new ModelVisual3D
-            {
-                Content = new DirectionalLight(Colors.White, new Vector3D(-1, -1, -2))
-            });
-
-            // Always add both models
-            viewport3D.Children.Add(new ModelVisual3D { Content = invisibleModel });
-            viewport3D.Children.Add(new ModelVisual3D { Content = visibleModel });
-
-            _rotation.Angle = 180;
+            //viewport3D.Children.Clear();
+//
+            //var reader = new ObjReader();
+            //var visibleModel = new ObjReader().Read("SoldierVis.obj");
+            //var invisibleModel = new ObjReader().Read("SoldierInVis.obj");
+//
+            //if (visibleModel == null || invisibleModel == null)
+            //{
+            //    HandyControl.Controls.MessageBox.Show("One or both OBJ models could not be loaded.");
+            //    return;
+            //}
+//
+            //var displayMode = (cmbDisplayMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Both";
+            //var chamsMode = cmbChamsMode.SelectedItem is ChamsMode m ? m : ChamsMode.Basic;
+//
+            //_rotateTransform = new RotateTransform3D(_rotation);
+            //var transformGroup = new Transform3DGroup
+            //{
+            //    Children = new Transform3DCollection
+            //    {
+            //        new ScaleTransform3D(0.33, 0.33, 0.33),
+            //        _rotateTransform
+            //    }
+            //};
+            //visibleModel.Transform = transformGroup;
+            //invisibleModel.Transform = transformGroup;
+//
+            //// Determine color application
+            //if(cmbChamsMode.SelectedItem is ChamsMode.Visible)
+            //{
+            //    ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
+            //    ApplyMaterialToModel(invisibleModel, visibleColor, chamsMode, isInvisible: true);
+            //}
+            //else if (displayMode == "Both")
+            //{
+            //    ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
+            //    ApplyMaterialToModel(invisibleModel, invisibleColor, chamsMode, isInvisible: true);
+            //}
+            //else if (displayMode == "Visible")
+            //{
+            //    ApplyMaterialToModel(visibleModel, visibleColor, chamsMode, isInvisible: false);
+            //    ApplyMaterialToModel(invisibleModel, visibleColor, chamsMode, isInvisible: false);
+            //}
+            //else if (displayMode == "Invisible")
+            //{
+            //    ApplyMaterialToModel(visibleModel, invisibleColor, chamsMode, isInvisible: true);
+            //    ApplyMaterialToModel(invisibleModel, invisibleColor, chamsMode, isInvisible: true);
+            //}
+//
+            //// Lighting
+            //viewport3D.Children.Add(new ModelVisual3D
+            //{
+            //    Content = new DirectionalLight(Colors.White, new Vector3D(-1, -1, -2))
+            //});
+//
+            //// Always add both models
+            //viewport3D.Children.Add(new ModelVisual3D { Content = invisibleModel });
+            //viewport3D.Children.Add(new ModelVisual3D { Content = visibleModel });
+//
+            //_rotation.Angle = 180;
         }
         private void ApplyMaterialToModel(Model3DGroup model, Color color, ChamsMode mode, bool isInvisible)
         {

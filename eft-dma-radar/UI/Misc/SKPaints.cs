@@ -677,6 +677,36 @@ namespace eft_dma_radar.UI.Misc
             FilterQuality = SKFilterQuality.Low
         };
 
+        public static SKPaint PaintWeapons { get; } = new()
+        {
+            Color = SKColor.Parse("ffa756"),
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint PaintMiniWeapons{ get; } = new()
+        {
+            Color = SKColor.Parse("ffa756"),
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint TextWeapons { get; } = new()
+        {
+            SubpixelText = true,
+            Color = SKColor.Parse("ffa756"),
+            IsStroke = false,
+            TextSize = 12,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyRegular,
+            FilterQuality = SKFilterQuality.Low
+        };
+
         public static SKPaint QuestHelperPaint { get; } = new()
         {
             Color = SKColors.DeepPink,
@@ -1173,7 +1203,25 @@ namespace eft_dma_radar.UI.Misc
         #endregion
 
         #region ESP Paints
+        public static SKPaint PaintVisible { get; } = new()
+        {
+            StrokeWidth = 1.5f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
 
+        public static SKPaint TextVisible { get; } = new()
+        {
+            SubpixelText = true,
+            IsStroke = false,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Center,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
         public static SKPaint PaintUSECESP { get; } = new()
         {
             StrokeWidth = 1.5f,
@@ -1293,7 +1341,30 @@ namespace eft_dma_radar.UI.Misc
             IsAntialias = true,
             FilterQuality = SKFilterQuality.Low
         };
-
+        public static SKPaint PhysicsTextPaint { get; } = new SKPaint
+        {
+            Color = SKColors.White,
+            TextSize = 12,
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill,
+            TextAlign = SKTextAlign.Center
+        };
+        public static SKPaint PhysicsFillPaint { get; } = new SKPaint
+        {
+            Color = SKColors.Red.WithAlpha(50),
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        public static SKPaint GetPaintForDistance(float distance)
+        {
+            return new SKPaint
+            {
+                Color = SKColors.Yellow.WithAlpha((byte)(255 - (distance / 100f) * 200)),
+                StrokeWidth = 1f,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true
+            };
+        }
         public static SKPaint TextAimbotLockedESP { get; } = new()
         {
             SubpixelText = true,
@@ -1565,6 +1636,27 @@ namespace eft_dma_radar.UI.Misc
             Typeface = CustomFonts.SKFontFamilyMedium,
             FilterQuality = SKFilterQuality.Low
         };
+
+        public static SKPaint PaintWeaponsESP { get; } = new()
+        {
+            StrokeWidth = 0.25f,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.Low
+        };
+
+        public static SKPaint TextWeaponsESP { get; } = new()
+        {
+            SubpixelText = true,
+            IsStroke = false,
+            TextSize = 12f,
+            TextAlign = SKTextAlign.Center,
+            TextEncoding = SKTextEncoding.Utf8,
+            IsAntialias = true,
+            Typeface = CustomFonts.SKFontFamilyMedium,
+            FilterQuality = SKFilterQuality.Low
+        };
+
 
         public static SKPaint PaintQuestItemESP { get; } = new()
         {

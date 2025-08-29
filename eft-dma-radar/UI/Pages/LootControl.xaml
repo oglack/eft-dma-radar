@@ -165,7 +165,7 @@
                                                   Style="{StaticResource CheckComboBoxExtend}"
                                                   hc:TitleElement.Title="Quick Filters"
                                                   hc:TitleElement.TitlePlacement="Top"
-                                                  hc:InfoElement.Placeholder="Show Meds, Show Food, Show Backpacks..."/>
+                                                  hc:InfoElement.Placeholder="Show Meds, Show Food, Show Weapons, Show Backpacks..."/>
 
                             <!-- Search Textbox -->
                             <Grid>
@@ -182,7 +182,7 @@
 
                     <!-- Container Options-->
                     <Expander x:Name="expContainerOptions" Header="Container Options" Style="{StaticResource PanelExpander}" IsExpanded="True">
-                        <hc:SimpleStackPanel Style="{StaticResource ExpanderContent}" Margin="2,8,2,0">
+                        <hc:SimpleStackPanel Style="{StaticResource ExpanderContent}" Margin="0,8,0,0">
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -190,7 +190,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <CheckBox x:Name="chkStaticContainers" Content="Static Containers" Tag="StaticContainers"
-                                          Style="{StaticResource DynamicCheckBoxStyle}" 
+                                          Style="{StaticResource DynamicCheckBoxStyle}"
                                           Grid.Column="0" Margin="0,0,5,0"/>
                             </Grid>
 
@@ -201,22 +201,20 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Border Style="{StaticResource ContainerListBorder}">
-                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
-                                        <ListBox x:Name="listContainers" Style="{StaticResource ContainerListBox}">
-                                            <ListBox.ItemContainerStyle>
-                                                <StaticResource ResourceKey="ContainerListBoxItem"/>
-                                            </ListBox.ItemContainerStyle>
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <CheckBox Content="{Binding Name}"
-                                                                  Style="{StaticResource DynamicCheckBoxStyle}"
-                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                  Checked="ContainerCheckbox_Checked"
-                                                                  Unchecked="ContainerCheckbox_Checked"/>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </ScrollViewer>
+                                    <ListBox x:Name="listContainers" Style="{StaticResource ContainerListBox}" MaxHeight="360">
+                                        <ListBox.ItemContainerStyle>
+                                            <StaticResource ResourceKey="ContainerListBoxItem"/>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Name}"
+                                                          Style="{StaticResource DynamicCheckBoxStyle}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Checked="ContainerCheckbox_Checked"
+                                                          Unchecked="ContainerCheckbox_Checked"/>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
                                 </Border>
 
                                 <hc:SimpleStackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top">

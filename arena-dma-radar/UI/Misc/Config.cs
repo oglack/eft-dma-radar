@@ -242,6 +242,34 @@ namespace arena_dma_radar.UI.Misc
         [JsonPropertyName("R9tQvX5")]
         public PersistentCache Cache { get; set; } = new();
 
+        /// <summary>
+        /// The API key for eft-api.tech
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("profileServiceAPIKey")]
+        public string ProfileServiceAPIKey { get; set; } = "your-api-key-here";
+
+        /// <summary>
+        /// The eft profile service, false if wanting tarkov.dev, true if wanting eft-api.tech
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("alternateProfileService")]
+        public bool AlternateProfileService { get; set; } = false;
+
+        /// <summary>
+        /// Send anonymous data to fd-mambo server to count amoutn of users. A simple ping, no IP or personal info is stored. It creates and uses a uniqe ID number.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("sendAnonymousUsage")]
+        public bool SendAnonymousUsage { get; set; } = true;
+
+        /// <summary>
+        /// The maxmimum amount of requests to send per minute
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("requestsPerMin")]
+        public int RequestsPerMin { get; set; } = 5;
+
         #region Config Interface
 
         /// <summary>
@@ -404,6 +432,9 @@ namespace arena_dma_radar.UI.Misc
 
                 if (config.PanelPositions.MapSetup == null)
                     config.PanelPositions.MapSetup = new PanelPositionConfig();
+
+                if (config.PanelPositions.SettingsSearch == null)
+                    config.PanelPositions.SettingsSearch = new PanelPositionConfig();
             }
 
             if (config.ExpanderStates != null)
@@ -583,6 +614,11 @@ namespace arena_dma_radar.UI.Misc
         /// </summary>
         [JsonPropertyName("generalSettings")]
         public PanelPositionConfig GeneralSettings { get; set; } = new PanelPositionConfig();
+        /// <summary>
+        /// SettingsSearch panel position
+        /// </summary>
+        [JsonPropertyName("settingsSearch")]
+        public PanelPositionConfig SettingsSearch { get; set; } = new PanelPositionConfig();
 
         /// <summary>
         /// Memory writing panel position
@@ -2052,8 +2088,6 @@ namespace arena_dma_radar.UI.Misc
             get => new(_dInfoLoc.Left, _dInfoLoc.Top, _dInfoLoc.Right, _dInfoLoc.Bottom);
             set => _dInfoLoc = new RectFSer(value.Left, value.Top, value.Right, value.Bottom);
         }
-
-        #endregion
     }
 
     /// <summary>
@@ -2080,4 +2114,5 @@ namespace arena_dma_radar.UI.Misc
         [JsonInclude]
         public ConcurrentDictionary<string, ProfileData> Profiles { get; private set; } = new();
     }
+    #endregion
 }

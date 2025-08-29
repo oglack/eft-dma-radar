@@ -60,7 +60,10 @@ namespace eft_dma_radar.Tarkov.Loot
                     var filter = LootFilterControl.Create();
                     FilteredLoot = UnfilteredLoot?
                         .Where(x => filter(x))
-                        .OrderByDescending(x => x.Important || (Program.Config.QuestHelper.Enabled && x.IsQuestCondition))
+                        .OrderByDescending(x => x.Important)
+                        .ThenByDescending(x => (Program.Config.QuestHelper.Enabled && x.IsQuestCondition))
+                        .ThenByDescending(x => x.IsWishlisted)
+                        .ThenByDescending(x => x.IsValuableLoot)
                         .ThenByDescending(x => x?.Price ?? 0)
                         .ToList();
                 }
@@ -81,6 +84,8 @@ namespace eft_dma_radar.Tarkov.Loot
             {
                 GetLoot();
                 RefreshFilter();
+
+                LootItem.CleanupNotificationHistory(UnfilteredLoot);
             }
             catch (OperationCanceledException)
             {

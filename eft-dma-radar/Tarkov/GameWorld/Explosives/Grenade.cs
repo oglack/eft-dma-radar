@@ -26,6 +26,23 @@ namespace eft_dma_radar.Tarkov.GameWorld.Explosives
 
         private const int GRENADE_RADIUS_POINTS = 16;
 
+        private readonly Queue<TrailPoint> _trailPositions = new();
+        private Vector3 _lastTrailPosition;
+        private float TRAIL_DURATION_SECONDS => ESPSettings.TrailDuration;
+        private float MIN_TRAIL_DISTANCE => ESPSettings.MinTrailDistance;
+
+        private struct TrailPoint
+        {
+            public Vector3 Position;
+            public DateTime Timestamp;
+
+            public TrailPoint(Vector3 position)
+            {
+                Position = position;
+                Timestamp = DateTime.UtcNow;
+            }
+        }
+
         private static readonly Dictionary<string, float> EffectiveDistances = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
         {
             { "F-1", 7f },
@@ -105,14 +122,35 @@ namespace eft_dma_radar.Tarkov.GameWorld.Explosives
         {
             if (!this.IsActive)
             {
+                _trailPositions.Clear();
                 return;
             }
             else if (IsDetonated)
             {
+                _trailPositions.Clear();
                 _parent.TryRemove(this, out _);
                 return;
             }
-            Position = Memory.ReadValue<Vector3>(PosAddr + 0x90, false);
+
+            var newPosition = Memory.ReadValue<Vector3>(PosAddr + 0x90, false);
+            var now = DateTime.UtcNow;
+
+            if (_trailPositions.Count == 0 || Vector3.Distance(_lastTrailPosition, newPosition) >= MIN_TRAIL_DISTANCE)
+            {
+                _trailPositions.Enqueue(new TrailPoint(newPosition));
+                _lastTrailPosition = newPosition;
+            }
+
+            while (_trailPositions.Count > 0)
+            {
+                var oldestPoint = _trailPositions.Peek();
+                if ((now - oldestPoint.Timestamp).TotalSeconds > TRAIL_DURATION_SECONDS)
+                    _trailPositions.Dequeue();
+                else
+                    break;
+            }
+
+            Position = newPosition;
         }
 
         #region Interfaces
@@ -207,6 +245,9 @@ namespace eft_dma_radar.Tarkov.GameWorld.Explosives
 
             var scale = ESP.Config.FontScale;
             var isPlayerInDanger = EffectiveDistance > 0 && dist <= EffectiveDistance;
+
+            if (ESPSettings.ShowGrenadeTrail)
+                DrawTrajectoryTrail(canvas, scrPos);
 
             switch (ESPSettings.RenderMode)
             {
@@ -343,6 +384,68 @@ namespace eft_dma_radar.Tarkov.GameWorld.Explosives
                     SKPaints.TextExplosiveESP,
                     nameText
                 );
+            }
+        }
+
+        /// <summary>
+        /// Draws the trajectory trail showing where the grenade has been
+        /// </summary>
+        /// <param name="canvas">Canvas to draw on</param>
+        /// <param name="currentScreenPos">Already calculated screen position of the grenade's current location</param>
+        private void DrawTrajectoryTrail(SKCanvas canvas, SKPoint currentScreenPos)
+        {
+            if (_trailPositions.Count < 2)
+                return;
+
+            var trailPoints = _trailPositions.ToArray();
+            var screenPoints = new List<(SKPoint screenPos, double age)>();
+            var now = DateTime.UtcNow;
+
+            for (int i = 0; i < trailPoints.Length - 1; i++)
+            {
+                var trailPoint = trailPoints[i];
+                var pos = trailPoint.Position;
+                if (CameraManagerBase.WorldToScreen(ref pos, out var screenPos))
+                {
+                    var ageInSeconds = (now - trailPoint.Timestamp).TotalSeconds;
+                    screenPoints.Add((screenPos, ageInSeconds));
+                }
+            }
+
+            if (trailPoints.Length > 0)
+            {
+                var mostRecentPoint = trailPoints[trailPoints.Length - 1];
+                var currentAge = (now - mostRecentPoint.Timestamp).TotalSeconds;
+                screenPoints.Add((currentScreenPos, currentAge));
+            }
+
+            if (screenPoints.Count < 2)
+                return;
+
+            var scale = ESP.Config.FontScale;
+            var baseColor = SKPaints.PaintExplosiveESP.Color;
+
+            using (var trailPaint = new SKPaint
+            {
+                StrokeWidth = 2.5f * scale,
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round
+            })
+            {
+                for (int i = 0; i < screenPoints.Count - 1; i++)
+                {
+                    var currentPoint = screenPoints[i];
+                    var nextPoint = screenPoints[i + 1];
+
+                    var ageProgress = 1.0 - (currentPoint.age / TRAIL_DURATION_SECONDS);
+                    var alpha = (byte)(60 + (195 * Math.Max(0, ageProgress)));
+
+                    trailPaint.Color = baseColor.WithAlpha(alpha);
+
+                    canvas.DrawLine(currentPoint.screenPos, nextPoint.screenPos, trailPaint);
+                }
             }
         }
 

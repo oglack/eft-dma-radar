@@ -434,6 +434,7 @@ namespace eft_dma_shared.Common.Unity
 
             public readonly string GetName() =>
                 ReadName(pName, 128);
+            public readonly int GetParamCount(ulong self) => NativeMethods.GetMonoMethodParamCount(self);             
         }
         [StructLayout(LayoutKind.Explicit, Pack = 1)]
         public readonly struct MonoClassField
@@ -589,6 +590,38 @@ namespace eft_dma_shared.Common.Unity
                 {
                     throw new InvalidOperationException($"'{methodName}' Function not found / Invalid address!");
                 }
+                return monoPtr;
+            }
+            public readonly ulong FindMethod(string methodName, int paramCount = -1)
+            {
+                ulong monoPtr = 0x0;
+
+                int methodCount = this.GetNumMethods();
+                if (methodCount > 5000)
+                {
+                    LoneLogging.WriteLine($"[MONO] FindMethod(): methodCount is out of bounds!");
+                    return default;
+                }
+
+                for (int i = 0; i < methodCount; i++)
+                {
+                    var method = GetMethod(i);
+
+                    if (method == 0x0)
+                        continue;
+
+                    if (method.Value.GetName() == methodName)
+                    {
+                        if (paramCount != -1)
+                        {
+                            if (method.Value.GetParamCount(method) == paramCount)
+                                monoPtr = method;
+                        }
+                        else
+                            monoPtr = method;
+                    }
+                }
+
                 return monoPtr;
             }
 

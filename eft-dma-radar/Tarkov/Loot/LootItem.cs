@@ -146,6 +146,15 @@ namespace eft_dma_radar.Tarkov.Loot
             }
         }
 
+        public bool IsGroupedBlacklisted
+        {
+            get
+            {
+                var matchedFilter = MatchedFilter;
+                return matchedFilter?.Blacklist == true;
+            }
+        }
+
         public (LootFilterGroup Group, GroupedLootFilterEntry Entry)? GetMatchedGroupAndEntry()
         {
             var groups = LootFilterManager.CurrentGroups?.Groups?
@@ -167,7 +176,7 @@ namespace eft_dma_radar.Tarkov.Loot
         /// <summary>
         /// True if the item is blacklisted via the UI.
         /// </summary>
-        public bool Blacklisted => CustomFilter?.Blacklisted ?? false;
+        public bool Blacklisted => CustomFilter?.Blacklisted ?? IsGroupedBlacklisted;
 
         public bool IsMeds
         {
@@ -215,14 +224,13 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             get
             {
-                if (Blacklisted)
+                if (Blacklisted || IsGroupedBlacklisted)
                     return false;
-                
+
                 if (this is LootContainer container)
                     return container.Loot.Any(x => x.IsRegularLoot);
 
                 return MatchedFilter != null || Price >= Config.MinLootValue;
-
             }
         }
 
@@ -244,13 +252,70 @@ namespace eft_dma_radar.Tarkov.Loot
         }
 
         /// <summary>
+        /// Checks if this item/container contains any important/valuable items that should always be displayed
+        /// </summary>
+        public bool HasImportantItems
+        {
+            get
+            {
+                if (this is LootCorpse corpse)
+                {
+                    return corpse.Loot?.Any(item =>
+                        !item.IsGroupedBlacklisted &&
+                        (item.Important ||
+                         item.IsWishlisted ||
+                         item is QuestItem ||
+                         (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                         (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                         (LootFilterControl.ShowMeds && item.IsMeds) ||
+                         (LootFilterControl.ShowFood && item.IsFood) ||
+                         (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                         item.IsValuableLoot ||
+                         (item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                    ) ?? false;
+                }
+
+                if (this is LootContainer container)
+                {
+                    return container.Loot?.Any(item =>
+                        !item.IsGroupedBlacklisted &&
+                        (item.Important ||
+                         item.IsWishlisted ||
+                         item is QuestItem ||
+                         (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                         (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                         (LootFilterControl.ShowMeds && item.IsMeds) ||
+                         (LootFilterControl.ShowFood && item.IsFood) ||
+                         (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                         item.IsValuableLoot ||
+                         (item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                    ) ?? false;
+                }
+
+                if (IsGroupedBlacklisted)
+                    return false;
+
+                return Important ||
+                       IsWishlisted ||
+                       this is QuestItem ||
+                       (Config.QuestHelper.Enabled && IsQuestCondition) ||
+                       (LootFilterControl.ShowBackpacks && IsBackpack) ||
+                       (LootFilterControl.ShowMeds && IsMeds) ||
+                       (LootFilterControl.ShowFood && IsFood) ||
+                       (LootFilterControl.ShowWeapons && IsWeapon) ||
+                       IsValuableLoot ||
+                       (MatchedFilter?.Color != null && !string.IsNullOrEmpty(MatchedFilter.Color));
+            }
+        }
+
+        /// <summary>
         /// Checks if an item exceeds valuable loot price threshold.
         /// </summary>
         public bool IsValuableLoot
         {
             get
             {
-                if (Blacklisted)
+                if (Blacklisted || IsGroupedBlacklisted)
                     return false;
 
                 if (this is LootContainer container)
@@ -267,9 +332,9 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             get
             {
-                if (Blacklisted)
+                if (Blacklisted || IsGroupedBlacklisted)
                     return false;
-                
+
                 if (this is LootContainer container)
                     return container.Loot.Any(x => x.IsImportant);
 
@@ -287,7 +352,7 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             get
             {
-                if (Blacklisted)
+                if (Blacklisted || IsGroupedBlacklisted)
                     return false;
 
                 if (IsCurrency)
@@ -333,7 +398,7 @@ namespace eft_dma_radar.Tarkov.Loot
 
         public virtual void Draw(SKCanvas canvas, LoneMapParams mapParams, ILocalPlayer localPlayer)
         {
-            if (this is LootCorpse && (!CorpseSettings.Enabled || !MeetsCorpseValueThreshold))
+            if (this is LootCorpse && (!CorpseSettings.Enabled || !MeetsCorpseValueThreshold) && !HasImportantItems)
                 return;
 
             EntityTypeSettings entitySettings;
@@ -359,6 +424,25 @@ namespace eft_dma_radar.Tarkov.Loot
             var point = Position.ToMapPos(mapParams.Map).ToZoomedPos(mapParams);
             MouseoverPosition = new Vector2(point.X, point.Y);
             SKPaints.ShapeOutline.StrokeWidth = 2f;
+
+            List<LootItem> importantLootItems = null;
+            if (this is LootCorpse corpse && CorpseSettings.ShowImportantLoot)
+            {
+                importantLootItems = corpse.Loot?
+                    .Where(item => item.IsImportant ||
+                                  item is QuestItem ||
+                                  (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                                  item.IsWishlisted ||
+                                  (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                                  (LootFilterControl.ShowMeds && item.IsMeds) ||
+                                  (LootFilterControl.ShowFood && item.IsFood) ||
+                                  (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                                  item.IsValuableLoot ||
+                                  (!item.IsGroupedBlacklisted && item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                    .OrderLoot()
+                    .Take(5)
+                    .ToList();
+            }
 
             float distanceYOffset;
             float nameXOffset = 7f * MainWindow.UIScale;
@@ -399,16 +483,37 @@ namespace eft_dma_radar.Tarkov.Loot
                 }
             }
 
+            var currentBottomY = point.Y + distanceYOffset - nameYOffset;
             if (entitySettings.ShowDistance)
             {
                 var distText = $"{(int)dist}m";
-                var distWidth = paints.Item2.MeasureText($"{(int)dist}");
+                var distWidth = paints.Item2.MeasureText(distText);
                 var distPoint = new SKPoint(
                     point.X - (distWidth / 2) - nameXOffset,
-                    point.Y + distanceYOffset - nameYOffset
+                    currentBottomY
                 );
                 canvas.DrawText(distText, distPoint, SKPaints.TextOutline);
                 canvas.DrawText(distText, distPoint, paints.Item2);
+            }
+
+            if (importantLootItems?.Any() == true)
+            {
+                var spacing = 1 * MainWindow.UIScale;
+                var textSize = 12 * MainWindow.UIScale;
+                currentBottomY += textSize + spacing;
+
+                foreach (var item in importantLootItems)
+                {
+                    var itemText = item.GetUILabel();
+                    var itemPaint = GetItemTextPaint(item);
+                    var itemWidth = itemPaint.MeasureText(itemText);
+                    var itemPoint = new SKPoint(point.X - (itemWidth / 2) - nameXOffset, currentBottomY);
+
+                    canvas.DrawText(itemText, itemPoint, SKPaints.TextOutline);
+                    canvas.DrawText(itemText, itemPoint, itemPaint);
+
+                    currentBottomY += textSize + spacing;
+                }
             }
         }
 
@@ -418,22 +523,17 @@ namespace eft_dma_radar.Tarkov.Loot
 
         public virtual void DrawESP(SKCanvas canvas, LocalPlayer localPlayer)
         {
-            if (this is LootCorpse && (!CorpseESPSettings.Enabled || !MeetsCorpseValueThreshold))
+            if (this is LootCorpse && (!CorpseESPSettings.Enabled || !MeetsCorpseValueThreshold) && !HasImportantItems)
                 return;
 
             EntityTypeSettingsESP espSettings;
 
             if (this is LootAirdrop)
                 espSettings = AirdropESPSettings;
+            else if (this is LootCorpse)
+                espSettings = CorpseESPSettings;
             else if (this is QuestItem || (QuestHelperEnabled && IsQuestCondition))
                 espSettings = QuestItemESPSettings;
-            else if (this is LootCorpse)
-            {
-                espSettings = CorpseESPSettings;
-
-                if (!MeetsCorpseValueThreshold)
-                    return;
-            }
             else if (IsImportant || IsValuableLoot)
                 espSettings = ImportantLootESPSettings;
             else
@@ -532,14 +632,42 @@ namespace eft_dma_radar.Tarkov.Loot
                 var textY = scrPos.Y + 16f * scale;
                 var textPt = new SKPoint(scrPos.X, textY);
 
-                textPt.DrawESPText(
-                    canvas,
-                    this,
-                    localPlayer,
-                    espSettings.ShowDistance,
-                    paints.Item2,
-                    (espSettings.ShowName || espSettings.ShowValue) ? label : null
-                );
+                if (this is LootCorpse corpse)
+                {
+                    var importantItems = CorpseESPSettings.ShowImportantLoot ? corpse.Loot?
+                        .Where(item => item.IsImportant ||
+                                      item is QuestItem ||
+                                      (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                                      item.IsWishlisted ||
+                                      (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                                      (LootFilterControl.ShowMeds && item.IsMeds) ||
+                                      (LootFilterControl.ShowFood && item.IsFood) ||
+                                      (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                                      item.IsValuableLoot ||
+                                      (!item.IsGroupedBlacklisted && item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)))
+                        .OrderLoot() : null;
+
+                    textPt.DrawESPText(
+                        canvas,
+                        this,
+                        localPlayer,
+                        espSettings.ShowDistance,
+                        paints.Item2,
+                        (espSettings.ShowName || espSettings.ShowValue) ? label : null,
+                        importantItems
+                    );
+                }
+                else
+                {
+                    textPt.DrawESPText(
+                        canvas,
+                        this,
+                        localPlayer,
+                        espSettings.ShowDistance,
+                        paints.Item2,
+                        (espSettings.ShowName || espSettings.ShowValue) ? label : null
+                    );
+                }
             }
         }
 
@@ -547,53 +675,69 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             if (this is LootContainer container)
             {
-                var lines = new List<string>();
+                var lines = new List<(string text, SKPaint paint)>();
                 var loot = container.FilteredLoot;
-                if (container is LootCorpse corpse) // Draw corpse loot
+
+                if (container is LootCorpse corpse)
                 {
                     var corpseLoot = corpse.Loot?.OrderLoot();
                     var sumPrice = corpseLoot?.Sum(x => x.Price) ?? 0;
                     var corpseValue = TarkovMarketItem.FormatPrice(sumPrice);
                     var playerObj = corpse.PlayerObject;
+
+                    if (!CorpseSettings.Enabled && (corpseLoot == null || !corpseLoot.Any()) && !HasImportantItems)
+                        return;
+
                     if (playerObj is not null)
                     {
                         var playerTypeKey = playerObj.DeterminePlayerTypeKey();
                         var typeSettings = Config.PlayerTypeSettings.GetSettings(playerTypeKey);
                         var name = Config.MaskNames && playerObj.IsHuman ? "<Hidden>" : playerObj.Name;
 
-                        lines.Add($"{playerObj.Type.GetDescription()}:{name}");
+                        lines.Add(($"{playerObj.Type.GetDescription()}:{name}", SKPaints.TextMouseover));
                         string g = null;
                         if (playerObj.GroupID != -1) g = $"G:{playerObj.GroupID} ";
-                        if (g is not null) lines.Add(g);
-                        lines.Add($"Value: {corpseValue}");
+                        if (g is not null) lines.Add((g, SKPaints.TextMouseover));
+                        lines.Add(($"Value: {corpseValue}", SKPaints.TextMouseover));
                     }
                     else
                     {
-                        lines.Add($"{corpse.Name} (Value:{corpseValue})");
+                        lines.Add(($"{corpse.Name} (Value:{corpseValue})", SKPaints.TextMouseover));
                     }
 
                     if (corpseLoot?.Any() == true)
+                    {
                         foreach (var item in corpseLoot)
-                            lines.Add(item.GetUILabel());
-                    else lines.Add("Empty");
+                        {
+                            var itemPaint = GetItemTextPaint(item);
+                            lines.Add((item.GetUILabel(), itemPaint));
+                        }
+                    }
+                    else
+                    {
+                        lines.Add(("Empty", SKPaints.TextMouseover));
+                    }
                 }
-                else if (loot is not null && loot.Count() > 1) // draw regular container loot
+                else if (loot is not null && loot.Count() > 1)
                 {
                     foreach (var item in loot)
-                        lines.Add(item.GetUILabel());
+                    {
+                        var itemPaint = GetItemTextPaint(item);
+                        lines.Add((item.GetUILabel(), itemPaint));
+                    }
                 }
                 else
                 {
-                    return; // Don't draw single items
+                    return;
                 }
 
                 Position.ToMapPos(mapParams.Map).ToZoomedPos(mapParams).DrawMouseoverText(canvas, lines);
             }
             else if (this is LootItem lootItem)
             {
-                var lines = new List<string>();
-
-                lines.Add($"{lootItem.Name}");
+                var lines = new List<(string text, SKPaint paint)>();
+                var itemPaint = GetItemTextPaint(lootItem);
+                lines.Add((lootItem.Name, itemPaint));
 
                 Position.ToMapPos(mapParams.Map).ToZoomedPos(mapParams).DrawMouseoverText(canvas, lines);
             }
@@ -687,15 +831,10 @@ namespace eft_dma_radar.Tarkov.Loot
                 {
                     label = container.Name;
                 }
-
-                if (important)
-                    label = $"!!{label}";
             }
             else
             {
-                if (IsImportant)
-                    label += "!!";
-                else if (Price > 0)
+                if (Price > 0)
                     label += $"[{TarkovMarketItem.FormatPrice(Price)}] ";
 
                 label += ShortName;
@@ -854,22 +993,26 @@ namespace eft_dma_radar.Tarkov.Loot
 
         private static SKColor? GetCorpseFilterColor(LootCorpse corpse)
         {
-            if (corpse.Loot != null)
+            if (corpse.Loot != null && corpse.Loot.Any())
             {
-                foreach (var item in corpse.Loot.OrderByDescending(x => x.IsImportant))
+                var topItem = corpse.Loot.OrderLoot().FirstOrDefault();
+
+                if (topItem != null)
                 {
-                    var matchedFilter = item.MatchedFilter;
+                    var matchedFilter = topItem.MatchedFilter;
                     if (matchedFilter != null && !string.IsNullOrEmpty(matchedFilter.Color))
                     {
                         if (SKColor.TryParse(matchedFilter.Color, out var filterColor))
                             return filterColor;
                     }
 
-                    if (item.IsWishlisted)
-                        return SKPaints.PaintWishlistItem.Color;
-                    if (item is QuestItem || (Config.QuestHelper.Enabled && item.IsQuestCondition))
+                    if (topItem is QuestItem || (Config.QuestHelper.Enabled && topItem.IsQuestCondition))
                         return SKPaints.PaintQuestItem.Color;
-                    if (item.IsValuableLoot)
+
+                    if (topItem.IsWishlisted)
+                        return SKPaints.PaintWishlistItem.Color;
+
+                    if (topItem.IsValuableLoot)
                         return SKPaints.PaintImportantLoot.Color;
                 }
             }
@@ -877,10 +1020,29 @@ namespace eft_dma_radar.Tarkov.Loot
             return null;
         }
 
+        /// <summary>
+        /// Helper method to get the appropriate text paint for an item based on its importance/filter
+        /// </summary>
+        private static SKPaint GetItemTextPaint(LootItem item)
+        {
+            var isImportant = (!item.IsGroupedBlacklisted && item.MatchedFilter?.Color != null && !string.IsNullOrEmpty(item.MatchedFilter.Color)) ||
+                               item is QuestItem ||
+                               (Config.QuestHelper.Enabled && item.IsQuestCondition) ||
+                               item.IsWishlisted ||
+                               (LootFilterControl.ShowBackpacks && item.IsBackpack) ||
+                               (LootFilterControl.ShowMeds && item.IsMeds) ||
+                               (LootFilterControl.ShowFood && item.IsFood) ||
+                               (LootFilterControl.ShowWeapons && item.IsWeapon) ||
+                               item.IsValuableLoot;
+
+            return isImportant ? item.GetPaints().Item2 : SKPaints.TextMouseover;
+        }
+
         public ValueTuple<SKPaint, SKPaint> GetPaints()
         {
             if (this is LootAirdrop)
                 return new(SKPaints.PaintAirdrop, SKPaints.TextAirdrop);
+
             if (this is LootCorpse corpse)
             {
                 var filterColor = GetCorpseFilterColor(corpse);
@@ -891,20 +1053,23 @@ namespace eft_dma_radar.Tarkov.Loot
                 }
                 return new(SKPaints.PaintCorpse, SKPaints.TextCorpse);
             }
-            if (IsWishlisted)
-                return new(SKPaints.PaintWishlistItem, SKPaints.TextWishlistItem);
+
             if (this is QuestItem)
                 return new(SKPaints.QuestHelperPaint, SKPaints.QuestHelperText);
             if (Config.QuestHelper.Enabled && IsQuestCondition)
                 return new(SKPaints.PaintQuestItem, SKPaints.TextQuestItem);
+            if (IsWishlisted)
+                return new(SKPaints.PaintWishlistItem, SKPaints.TextWishlistItem);
             if (LootFilterControl.ShowBackpacks && IsBackpack)
                 return new(SKPaints.PaintBackpacks, SKPaints.TextBackpacks);
             if (LootFilterControl.ShowMeds && IsMeds)
                 return new(SKPaints.PaintMeds, SKPaints.TextMeds);
             if (LootFilterControl.ShowFood && IsFood)
                 return new(SKPaints.PaintFood, SKPaints.TextFood);
+            if (LootFilterControl.ShowWeapons && IsWeapon)
+                return new(SKPaints.PaintWeapons, SKPaints.TextWeapons);
 
-            string color = this is LootContainer ctr
+            var color = this is LootContainer ctr
                 ? ctr.Loot.FirstOrDefault(x => x.Important)?.MatchedFilter?.Color
                 : MatchedFilter?.Color;
 
@@ -924,6 +1089,7 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             if (this is LootAirdrop)
                 return SKPaints.PaintMiniAirdrop;
+
             if (this is LootCorpse corpse)
             {
                 var filterColor = GetCorpseFilterColor(corpse);
@@ -934,20 +1100,23 @@ namespace eft_dma_radar.Tarkov.Loot
                 }
                 return SKPaints.PaintMiniCorpse;
             }
-            if (IsWishlisted)
-                return SKPaints.PaintMiniWishlistItem;
+
             if (this is QuestItem)
                 return SKPaints.MiniQuestHelperPaint;
             if (Config.QuestHelper.Enabled && IsQuestCondition)
                 return SKPaints.PaintMiniQuestItem;
+            if (IsWishlisted)
+                return SKPaints.PaintMiniWishlistItem;
             if (LootFilterControl.ShowBackpacks && IsBackpack)
                 return SKPaints.PaintMiniBackpacks;
             if (LootFilterControl.ShowMeds && IsMeds)
                 return SKPaints.PaintMiniMeds;
             if (LootFilterControl.ShowFood && IsFood)
                 return SKPaints.PaintMiniFood;
+            if (LootFilterControl.ShowWeapons && IsWeapon)
+                return SKPaints.PaintMiniWeapons;
 
-            string color = this is LootContainer ctr
+            var color = this is LootContainer ctr
                 ? ctr.Loot.FirstOrDefault(x => x.Important)?.MatchedFilter?.Color
                 : MatchedFilter?.Color;
 
@@ -967,6 +1136,7 @@ namespace eft_dma_radar.Tarkov.Loot
         {
             if (this is LootAirdrop)
                 return new(SKPaints.PaintAirdropESP, SKPaints.TextAirdropESP);
+
             if (this is LootCorpse corpse)
             {
                 var filterColor = GetCorpseFilterColor(corpse);
@@ -977,20 +1147,23 @@ namespace eft_dma_radar.Tarkov.Loot
                 }
                 return new(SKPaints.PaintCorpseESP, SKPaints.TextCorpseESP);
             }
-            if (IsWishlisted)
-                return new(SKPaints.PaintWishlistItemESP, SKPaints.TextWishlistItemESP);
+
             if (this is QuestItem)
                 return new(SKPaints.PaintQuestHelperESP, SKPaints.TextQuestHelperESP);
             if (Config.QuestHelper.Enabled && IsQuestCondition)
                 return new(SKPaints.PaintQuestItemESP, SKPaints.TextQuestItemESP);
+            if (IsWishlisted)
+                return new(SKPaints.PaintWishlistItemESP, SKPaints.TextWishlistItemESP);
             if (LootFilterControl.ShowBackpacks && IsBackpack)
                 return new(SKPaints.PaintBackpackESP, SKPaints.TextBackpackESP);
             if (LootFilterControl.ShowMeds && IsMeds)
                 return new(SKPaints.PaintMedsESP, SKPaints.TextMedsESP);
             if (LootFilterControl.ShowFood && IsFood)
                 return new(SKPaints.PaintFoodESP, SKPaints.TextFoodESP);
+            if (LootFilterControl.ShowWeapons && IsWeapon)
+                return new(SKPaints.PaintWeaponsESP, SKPaints.TextWeaponsESP);
 
-            string color = this is LootContainer ctr
+            var color = this is LootContainer ctr
                 ? ctr.Loot.FirstOrDefault(x => x.Important)?.MatchedFilter?.Color
                 : MatchedFilter?.Color;
 
@@ -1011,22 +1184,72 @@ namespace eft_dma_radar.Tarkov.Loot
         public void CheckNotify()
         {
             var matched = GetMatchedGroupAndEntry();
-            if (matched == null) return;
+            if (matched == null)
+                return;
 
             var (group, entry) = matched.Value;
 
-            if (!group.Enabled || !entry.Enabled || !entry.Notify || group.NotTime == 0)
+            if (!group.Enabled || !entry.Enabled || !group.Notify || !entry.Notify)
                 return;
+
+            var now = DateTime.UtcNow;
+            var notifyKey = ID;
+
+            if (group.NotTime == 0)
+            {
+                if (_lastNotifyTimes.ContainsKey(notifyKey))
+                    return;
+
+                _lastNotifyTimes[notifyKey] = now;
+                NotificationsShared.Info($"[Loot] {entry.Name} found ({TarkovMarketItem.FormatPrice(Price)})");
+                return;
+            }
 
             var interval = group.NotTime;
-            var now = DateTime.UtcNow;
 
-            if (_lastNotifyTimes.TryGetValue(ID, out var last) && (now - last).TotalSeconds < interval)
+            if (_lastNotifyTimes.TryGetValue(notifyKey, out var lastNotifyTime))
+            {
+                if ((now - lastNotifyTime).TotalSeconds < interval)
+                    return;
+            }
+
+            _lastNotifyTimes[notifyKey] = now;
+            NotificationsShared.Info($"[Loot] {entry.Name} present ({TarkovMarketItem.FormatPrice(Price)})");
+        }
+
+        /// <summary>
+        /// Clears notification history for items that are no longer present
+        /// Call this periodically or when loot is refreshed
+        /// </summary>
+        public static void CleanupNotificationHistory(IEnumerable<LootItem> currentLoot)
+        {
+            if (currentLoot == null)
+            {
+                _lastNotifyTimes.Clear();
                 return;
+            }
 
-            _lastNotifyTimes[ID] = now;
+            var currentItemIds = new HashSet<string>(currentLoot.Select(item => item.ID));
+            var keysToRemove = _lastNotifyTimes.Keys.Where(key => !currentItemIds.Contains(key)).ToList();
 
-            NotificationsShared.Info($"[Loot] {entry.Name} spawned ({TarkovMarketItem.FormatPrice(Price)})");
+            foreach (var key in keysToRemove)
+            {
+                _lastNotifyTimes.Remove(key);
+            }
+
+            if (keysToRemove.Count > 0)
+            {
+                LoneLogging.WriteLine($"[Notifications] Cleaned up {keysToRemove.Count} old notification entries");
+            }
+        }
+
+        /// <summary>
+        /// Clears all notification history (useful when starting a new raid)
+        /// </summary>
+        public static void ClearNotificationHistory()
+        {
+            _lastNotifyTimes.Clear();
+            LoneLogging.WriteLine("[Notifications] Cleared all notification history");
         }
 
         #region Custom Loot Paints
@@ -1107,7 +1330,9 @@ namespace eft_dma_radar.Tarkov.Loot
         public static IEnumerable<LootItem> OrderLoot(this IEnumerable<LootItem> loot)
         {
             return loot
-                .OrderByDescending(x => x.IsImportant || (Program.Config.QuestHelper.Enabled && x.IsQuestCondition))
+                .OrderByDescending(x => x.IsImportant && !x.IsWishlisted)
+                .ThenByDescending(x => (Program.Config.QuestHelper.Enabled && x.IsQuestCondition))
+                .ThenByDescending(x => x.IsWishlisted)
                 .ThenByDescending(x => x.Price);
         }
     }

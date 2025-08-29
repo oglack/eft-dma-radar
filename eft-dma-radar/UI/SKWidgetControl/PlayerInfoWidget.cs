@@ -60,8 +60,12 @@ namespace eft_dma_radar.UI.SKWidgetControl
 
             sb.AppendFormat("{0,-25}", "Fac / P / Lvl / Name")
               .AppendFormat("{0,-15}", "Last Updated")
-              .AppendFormat("{0,-5}", "Acct")
-              .AppendFormat("{0,-7}", "K/D")
+              .AppendFormat("{0,-5}", "Acct");
+
+            if (Config.AlternateProfileService)
+                sb.AppendFormat("{0,-10}", "Streamer");
+
+            sb.AppendFormat("{0,-7}", "K/D")
               .AppendFormat("{0,-7}", "Hours")
               .AppendFormat("{0,-6}", "Raids")
               .AppendFormat("{0,-6}", "S/R%")
@@ -156,6 +160,7 @@ namespace eft_dma_radar.UI.SKWidgetControl
             string survivePercent = "--";
             string hours = "--";
             string lastUpdated = "--";
+            string isStreamer = "--";
 
             if (player is ObservedPlayer observed)
             {
@@ -172,8 +177,25 @@ namespace eft_dma_radar.UI.SKWidgetControl
                     hours = hoursResult.ToString();
                 if (observed.Profile?.Prestige is int prestigeResult)
                     prestige = prestigeResult.ToString();
-                if (observed.Profile?.Updated is string lastUpdatedResult)
-                    lastUpdated = lastUpdatedResult;
+
+                if (Config.AlternateProfileService)
+                {
+                    if (observed.Profile?.LastUpdatedReadable is string lastUpdatedResult)
+                        lastUpdated = lastUpdatedResult;
+                }
+                else
+                {
+                    if (observed.Profile?.Updated is string lastUpdatedResult)
+                        lastUpdated = lastUpdatedResult;
+                }
+
+                if (Config.AlternateProfileService)
+                {
+                    if (observed.Profile?.IsStreamer is bool isStreamerResult)
+                        isStreamer = isStreamerResult.ToString();
+                }
+                else
+                    isStreamer = "N/A";
             }
 
             var grp = player.GroupID != -1 ? player.GroupID.ToString() : "--";
@@ -182,15 +204,19 @@ namespace eft_dma_radar.UI.SKWidgetControl
 
             sb.AppendFormat("{0,-25}", $"{focused}{faction}/P{prestige}/L{level}:{name}")
               .AppendFormat("{0,-15}", lastUpdated)
-              .AppendFormat("{0,-5}", edition)
-              .AppendFormat("{0,-7}", kd)
+              .AppendFormat("{0,-5}", edition);
+
+            if (Config.AlternateProfileService)
+                sb.AppendFormat("{0,-10}", isStreamer);
+
+            sb.AppendFormat("{0,-7}", kd)
               .AppendFormat("{0,-7}", hours)
               .AppendFormat("{0,-6}", raidCount)
               .AppendFormat("{0,-6}", survivePercent)
               .AppendFormat("{0,-5}", grp)
-              .AppendFormat("{0,-8}", $"{TarkovMarketItem.FormatPrice(player.Gear?.Value ?? 0)}")
-              .AppendFormat("{0,-30}", $"{inHands}")
-              .AppendFormat("{0,-5}", $"{distance}")
+              .AppendFormat("{0,-8}", TarkovMarketItem.FormatPrice(player.Gear?.Value ?? 0))
+              .AppendFormat("{0,-30}", inHands)
+              .AppendFormat("{0,-5}", distance)
               .AppendLine();
         }
 
